@@ -69,18 +69,15 @@ Add to `pyproject.toml` (after the `[tool.ruff.lint]` block):
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = "civicvault.settings"
 python_files = ["test_*.py", "tests.py", "*_test.py"]
-addopts = "--reuse-db"
 ```
+
+> Do **not** set `addopts = "--reuse-db"`: this plan adds a migration in most tasks, and `--reuse-db` makes pytest-django skip applying new migrations to an existing test DB (causing missing-table failures). Let the test DB be rebuilt each run. Do **not** set `testpaths` either — later tasks put tests under `catalog/tests/`, which auto-discovery finds.
 
 - [ ] **Step 3: Write the failing smoke test**
 
 Create `tests/__init__.py` (empty) and `tests/test_smoke.py`:
 
 ```python
-def test_truth():
-    assert True
-
-
 def test_settings_import():
     from django.conf import settings
 
@@ -90,7 +87,7 @@ def test_settings_import():
 - [ ] **Step 4: Run it to verify it passes**
 
 Run: `uv run pytest tests/test_smoke.py -v`
-Expected: 2 passed. (Confirms pytest-django finds the settings module.)
+Expected: 1 passed. (Confirms pytest-django finds the settings module.)
 
 - [ ] **Step 5: Commit**
 
@@ -139,6 +136,8 @@ def test_bucket_set_uses_r2_s3_backend():
     assert opts["bucket_name"] == "civicvault-media"
     assert opts["endpoint_url"] == "https://acct.r2.cloudflarestorage.com"
     assert opts["region_name"] == "auto"
+    assert opts["addressing_style"] == "path"  # R2-correct; guards the value
+    assert opts["default_acl"] is None
     assert opts["querystring_auth"] is False
 ```
 
@@ -183,7 +182,10 @@ def build_storages(*, bucket, endpoint_url, access_key, secret_key):
                 # R2 ignores regions; "auto" is the documented value.
                 "region_name": "auto",
                 "signature_version": "s3v4",
-                "addressing_style": "virtual",
+                # R2 supports both path- and virtual-hosted style; Cloudflare's
+                # own SDK examples use path-style, which avoids bucket-name DNS
+                # edge cases on the S3 API endpoint.
+                "addressing_style": "path",
                 "default_acl": None,
                 # Public assets are served via Cloudflare cache, not signed URLs.
                 "querystring_auth": False,
@@ -197,11 +199,11 @@ def build_storages(*, bucket, endpoint_url, access_key, secret_key):
 
 In `civicvault/settings.py`, append after the Static files section (after line 136, the `STATIC_ROOT` line):
 
+Add `from civicvault.storage import build_storages` to the imports at the **top** of `settings.py` (alongside `import environ`), then add this block after the Static files section:
+
 ```python
 # Object storage (Cloudflare R2 via the S3 API; R2 has zero egress fees).
 # Unset R2_BUCKET → local filesystem storage so dev works without credentials.
-from civicvault.storage import build_storages  # noqa: E402
-
 STORAGES = build_storages(
     bucket=env("R2_BUCKET", default=""),
     endpoint_url=env("R2_ENDPOINT_URL", default=""),
@@ -1601,6 +1603,11 @@ class Citation(TimeStamped):
     object_id = models.PositiveBigIntegerField()
     fact = GenericForeignKey("content_type", "object_id")
 
+    # on_delete asymmetry is intentional: a citation is document-anchored, so it
+    # dies with its document (CASCADE). The transcript_segment is an optional pin,
+    # so SET_NULL preserves a citation that still has document evidence. A segment
+    # that is the SOLE evidence cannot be deleted — the citation_has_evidence CHECK
+    # blocks it (safe failure), which is correct.
     document = models.ForeignKey(
         Document, null=True, blank=True, on_delete=models.CASCADE, related_name="citations"
     )
@@ -1627,7 +1634,8 @@ class Citation(TimeStamped):
         ]
 
     def __str__(self):
-        return f"Citation({self.content_type} #{self.object_id})"
+        evidence = self.document or self.transcript_segment
+        return f"Citation({self.content_type} #{self.object_id} → {evidence})"
 ```
 
 > **Note:** Django 6 uses `condition=` for `CheckConstraint` (the old `check=` keyword was removed). The `Q` import comes via `models.Q`.
@@ -1979,6 +1987,16 @@ git commit -m "test: end-to-end provenance chain smoke test"
 ```
 
 ---
+
+## Carry into slice 1b (from final holistic review)
+
+These are NOT part of this foundation plan — they are "cheap now, painful after data exists" items to apply at the **start of slice 1b (the BCSD parser), before any bulk load**:
+
+1. **Partial unique constraints on object-storage keys:** `UniqueConstraint(fields=["r2_key"], condition=~Q(r2_key=""))` on both `Document` and `MediaAsset` — object-storage keys are logically unique per asset; dedup after a bulk load is annoying.
+2. **A uniqueness story for `Meeting.slug`** before the public-URL slice (1e): mirror the `Organization` partial-unique pattern (e.g. `(jurisdiction, slug)`), since `slug` will be the public URL key. Idempotency is already handled by `(source, source_meeting_id)`; this is about URL stability.
+3. **Bound `confidence` to its contract** (0.0–1.0) with a `CheckConstraint`, so ingester self-scoring can't silently write out-of-range values.
+4. **Tidy `Meeting.SLUG_TO_KIND`** while editing `meeting.py` for the parser: define the map once inside the class body (drop the module global + the post-class `Meeting.SLUG_TO_KIND = …` reassignment). Purely cosmetic; the current form is correct.
+5. **Parser contract:** write everything `reviewed=False` and emit a `Citation` (pointing at the `minutes.md` Document, with page where available) for every `Vote`/`Appearance` materialized — the shape encoded by `test_provenance_smoke.py`.
 
 ## Deferred to later phases (NOT in this plan)
 
