@@ -22,4 +22,6 @@ def test_bucket_set_uses_r2_s3_backend():
     assert opts["bucket_name"] == "civicvault-media"
     assert opts["endpoint_url"] == "https://acct.r2.cloudflarestorage.com"
     assert opts["region_name"] == "auto"
+    assert opts["addressing_style"] == "path"  # R2-correct; guards the value
+    assert opts["default_acl"] is None
     assert opts["querystring_auth"] is False

@@ -14,6 +14,8 @@ from pathlib import Path
 
 import environ
 
+from civicvault.storage import build_storages
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -137,8 +139,6 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 
 # Object storage (Cloudflare R2 via the S3 API; R2 has zero egress fees).
 # Unset R2_BUCKET → local filesystem storage so dev works without credentials.
-from civicvault.storage import build_storages  # noqa: E402
-
 STORAGES = build_storages(
     bucket=env("R2_BUCKET", default=""),
     endpoint_url=env("R2_ENDPOINT_URL", default=""),

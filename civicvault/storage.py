@@ -29,7 +29,10 @@ def build_storages(*, bucket, endpoint_url, access_key, secret_key):
                 # R2 ignores regions; "auto" is the documented value.
                 "region_name": "auto",
                 "signature_version": "s3v4",
-                "addressing_style": "virtual",
+                # R2 supports both path- and virtual-hosted style; Cloudflare's
+                # own SDK examples use path-style, which avoids bucket-name DNS
+                # edge cases on the S3 API endpoint.
+                "addressing_style": "path",
                 "default_acl": None,
                 # Public assets are served via Cloudflare cache, not signed URLs.
                 "querystring_auth": False,
