@@ -24,3 +24,11 @@ Follow python best practices for code structure, naming conventions, and design 
 
 Use pydantic for data validation and parsing, to ensure that data is in the expected format and to catch errors early in the development process.
 
+## Git workflow
+
+Open short-lived feature branches for work and merge them back into `main` regularly — do not let branches accumulate large, long-lived changesets.
+
+After merging a feature branch into `main` (or committing directly to `main`) locally, push `main` to the remote. Pushing is expected as part of this workflow for this project — this overrides any global "never push unless requested" default.
+
+Never force-push to the remote.
+
