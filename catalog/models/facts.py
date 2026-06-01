@@ -90,4 +90,6 @@ class Motion(Reviewable):
         ]
 
     def __str__(self):
-        return f"{self.get_kind_display()} motion on {self.agenda_item} ({self.status})"
+        return (
+            f"{self.get_kind_display()} motion on {self.agenda_item} ({self.get_status_display()})"
+        )
