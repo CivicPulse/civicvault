@@ -28,7 +28,8 @@ does not mirror production's CloudNativePG-managed Postgres.
    - `image: postgres:17`
    - environment with overridable defaults: `POSTGRES_USER`/`POSTGRES_PASSWORD`/`POSTGRES_DB`,
      all defaulting to `civicvault`
-   - `ports: ["5432:5432"]`
+   - `ports: ["${POSTGRES_PORT:-5433}:5432"]` — published on host **5433** because a
+     host-installed Postgres already holds 5432; container-internal port stays 5432
    - named volume `pgdata` mounted at `/var/lib/postgresql/data` for persistence
    - bind-mount `./docker/postgres/initdb` → `/docker-entrypoint-initdb.d:ro`
    - `pg_isready` healthcheck so scripts can wait for readiness before migrating
@@ -45,7 +46,7 @@ does not mirror production's CloudNativePG-managed Postgres.
 
 4. **Environment wiring**:
    - `.env.example`: document
-     `DATABASE_URL=postgres://civicvault:civicvault@localhost:5432/civicvault`
+     `DATABASE_URL=postgres://civicvault:civicvault@localhost:5433/civicvault`
      and the optional `POSTGRES_*` override vars.
    - local `.env` (gitignored): set that `DATABASE_URL` so dev uses Postgres now.
 
