@@ -64,7 +64,7 @@ def _parse_roster(body: list[str]) -> list[ParsedPerson]:
         if s.startswith("#### Voting Members"):
             in_voting = True
             continue
-        if in_voting and s.startswith("###"):
+        if in_voting and s.startswith("### "):
             break
         if in_voting and s.startswith("- "):
             raw = html.unescape(s[2:].strip())
@@ -129,6 +129,13 @@ def parse_minutes_md(text: str) -> ParsedMinutes:
     appearances = _parse_appearances(body)
 
     outcomes: dict[str, ItemOutcome] = {}
+    # NOTE (slice 1b): only "#### " agenda items get outcomes. Procedural "### "
+    # sections (Approve Agenda, Adjourn, etc.) may carry motions/roll-calls but are
+    # not materialized as items this slice; capturing them is a deliberate follow-up.
+    #
+    # Every "#### <ord>. ..." line becomes an outcome entry, including non-action
+    # subitems (e.g. the Pledge student). Those carry empty bodies and join harmlessly
+    # to their event.md agenda line in the adapter; the person is also an appearance.
     # Collect all #### item headers with their line positions.
     headers: list[tuple[int, str]] = []
     for idx, line in enumerate(body):
@@ -141,7 +148,7 @@ def parse_minutes_md(text: str) -> ParsedMinutes:
         for j in range(idx + 1, end):
             s = body[j].strip()
             # Stop early if a ### section boundary appears before the next #### item.
-            if s.startswith("### ") and not s.startswith("#### "):
+            if s.startswith("### "):
                 break
             block_lines.append(body[j])
 
