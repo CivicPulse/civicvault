@@ -170,3 +170,6 @@ def test_reload_is_idempotent(context):
     assert AgendaItem.objects.filter(meeting=meeting).count() == 2
     assert Vote.objects.filter(agenda_item__meeting=meeting).count() == 2
     assert Person.objects.count() == 3
+    # Citations are wiped+recreated on reload, so the count stays stable at 8
+    # (3 roster + 1 invocation + 2 motions + 2 votes).
+    assert Citation.objects.count() == 8

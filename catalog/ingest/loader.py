@@ -1,6 +1,7 @@
 """Generic IR -> Django loader (brief §14.3). Agency-agnostic: it never imports a
 BCSD module. Writes everything as reviewed=False proposals and emits a Citation
-into the minutes Document for every materialized Vote/Appearance/Motion.
+into the minutes Document for every materialized Vote/Appearance/Motion WHEN a
+minutes Document is present.
 
 Idempotency: keyed on Meeting (source, source_meeting_id). Re-ingest wipes the
 meeting's existing facts (agenda items -> motions/votes; appearances; source
@@ -76,6 +77,8 @@ def _meeting_slug(parsed: ParsedMeeting) -> str:
 
 def _get_person(parsed_person: ParsedPerson, cache: dict[str, Person]) -> Person:
     slug = slugify(parsed_person.full_name) or slugify(parsed_person.raw_name)
+    if not slug:
+        raise ValueError(f"Could not derive a slug for person: {parsed_person!r}")
     if slug in cache:
         return cache[slug]
     person, _ = Person.objects.get_or_create(
@@ -121,6 +124,7 @@ def load_meeting(parsed: ParsedMeeting, *, source, jurisdiction, body) -> Meetin
             meeting=meeting,
             source=source,
             source_url=parsed.source_url,
+            text=pdoc.text,  # FTS search_vector population is deferred to slice 1c.
             ocr_status=Document.OCRStatus.HAS_TEXT,
         )
         if pdoc.kind == "minutes":
@@ -139,11 +143,13 @@ def load_meeting(parsed: ParsedMeeting, *, source, jurisdiction, body) -> Meetin
 
     # Other appearances (invocation/pledge/visitors).
     for pa in parsed.appearances:
+        if pa.role not in _APPEARANCE_ROLE:
+            raise ValueError(f"Unknown appearance role: {pa.role!r}")
         person = _get_person(pa.person, person_cache)
         appearance = Appearance.objects.create(
             person=person,
             meeting=meeting,
-            role=_APPEARANCE_ROLE.get(pa.role, Appearance.Role.SPEAKER),
+            role=_APPEARANCE_ROLE[pa.role],
             reviewed=False,
         )
         if minutes_doc:
@@ -175,11 +181,13 @@ def load_meeting(parsed: ParsedMeeting, *, source, jurisdiction, body) -> Meetin
             if minutes_doc:
                 Citation.objects.create(fact=motion, document=minutes_doc)
         for pv in pitem.votes:
+            if pv.value not in _VOTE_VALUE:
+                raise ValueError(f"Unknown vote value: {pv.value!r}")
             person = _get_person(pv.person, person_cache)
             vote = Vote.objects.create(
                 person=person,
                 agenda_item=item,
-                value=_VOTE_VALUE.get(pv.value, Vote.Value.YEA),
+                value=_VOTE_VALUE[pv.value],
                 reviewed=False,
             )
             if minutes_doc:
