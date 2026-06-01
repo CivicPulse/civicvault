@@ -34,6 +34,13 @@ class MediaAsset(TimeStamped):
         Source, null=True, blank=True, on_delete=models.SET_NULL, related_name="media_assets"
     )
 
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["r2_key"], condition=~models.Q(r2_key=""), name="uniq_media_r2_key"
+            )
+        ]
+
     def __str__(self):
         return f"{self.get_kind_display()} {self.youtube_id or self.r2_key}"
 

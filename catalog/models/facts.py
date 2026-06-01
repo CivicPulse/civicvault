@@ -21,7 +21,12 @@ class Vote(Reviewable):
 
     class Meta:
         constraints = [
-            models.UniqueConstraint(fields=["person", "agenda_item"], name="uniq_vote_person_item")
+            models.UniqueConstraint(fields=["person", "agenda_item"], name="uniq_vote_person_item"),
+            models.CheckConstraint(
+                condition=models.Q(confidence__isnull=True)
+                | models.Q(confidence__gte=0, confidence__lte=1),
+                name="confidence_range_vote",
+            ),
         ]
 
     def __str__(self):
@@ -42,6 +47,19 @@ class Appearance(Reviewable):
     person = models.ForeignKey(Person, on_delete=models.CASCADE, related_name="appearances")
     meeting = models.ForeignKey(Meeting, on_delete=models.CASCADE, related_name="appearances")
     role = models.CharField(max_length=16, choices=Role.choices, default=Role.MEMBER)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["person", "meeting", "role"],
+                name="uniq_appearance_person_meeting_role",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(confidence__isnull=True)
+                | models.Q(confidence__gte=0, confidence__lte=1),
+                name="confidence_range_appearance",
+            ),
+        ]
 
     def __str__(self):
         return f"{self.person} as {self.role} at {self.meeting}"

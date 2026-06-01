@@ -3,18 +3,18 @@ from django.db import models
 from .base import TimeStamped
 from .org import Jurisdiction, Organization, Source
 
-# Maps the archive's folder type-slug to a Meeting.Kind (brief §4.1).
-SLUG_TO_KIND = {
-    "committee-meeting": "committee",
-    "board-meeting": "board",
-    "board-agenda": "board_agenda",
-    "called-board-meeting": "called_board",
-    "called-board-meeting-policy-review": "called_board",
-}
-
 
 class Meeting(TimeStamped):
     """The ingestion anchor: one meeting record (brief §7)."""
+
+    # Maps the archive's folder type-slug to a Kind (brief §4.1).
+    SLUG_TO_KIND = {
+        "committee-meeting": "committee",
+        "board-meeting": "board",
+        "board-agenda": "board_agenda",
+        "called-board-meeting": "called_board",
+        "called-board-meeting-policy-review": "called_board",
+    }
 
     class Kind(models.TextChoices):
         COMMITTEE = "committee", "Committee Meeting"
@@ -46,7 +46,16 @@ class Meeting(TimeStamped):
             models.UniqueConstraint(
                 fields=["source", "source_meeting_id"],
                 name="uniq_meeting_per_source_id",
-            )
+            ),
+            models.UniqueConstraint(
+                fields=["jurisdiction", "slug"],
+                name="uniq_meeting_slug_per_jurisdiction",
+            ),
+            models.UniqueConstraint(
+                fields=["slug"],
+                condition=models.Q(jurisdiction__isnull=True),
+                name="uniq_global_meeting_slug",
+            ),
         ]
 
     @classmethod
@@ -56,10 +65,6 @@ class Meeting(TimeStamped):
 
     def __str__(self):
         return f"{self.date} {self.get_kind_display()}"
-
-
-# Expose the map as a class attribute referenced by kind_from_slug.
-Meeting.SLUG_TO_KIND = SLUG_TO_KIND
 
 
 class AgendaItem(TimeStamped):
@@ -96,6 +101,11 @@ class AgendaItem(TimeStamped):
 
     class Meta:
         ordering = ["meeting", "order"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["meeting", "order"], name="uniq_agendaitem_meeting_order"
+            )
+        ]
 
     def __str__(self):
         return f"{self.code} {self.title}".strip()

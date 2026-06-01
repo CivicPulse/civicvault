@@ -61,6 +61,11 @@ class Document(TimeStamped):
 
     class Meta:
         indexes = [GinIndex(fields=["search_vector"], name="gin_document_search")]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["r2_key"], condition=~models.Q(r2_key=""), name="uniq_document_r2_key"
+            )
+        ]
 
     def __str__(self):
         return self.title

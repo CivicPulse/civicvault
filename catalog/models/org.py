@@ -81,6 +81,11 @@ class Organization(Reviewable):
                 condition=models.Q(jurisdiction__isnull=True),
                 name="uniq_global_org_slug",
             ),
+            models.CheckConstraint(
+                condition=models.Q(confidence__isnull=True)
+                | models.Q(confidence__gte=0, confidence__lte=1),
+                name="confidence_range_organization",
+            ),
         ]
 
     def __str__(self):
@@ -94,6 +99,15 @@ class Person(Reviewable):
     aka = ArrayField(models.CharField(max_length=255), default=list, blank=True)
     slug = models.SlugField(max_length=255, unique=True)
     notes = models.TextField(blank=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(confidence__isnull=True)
+                | models.Q(confidence__gte=0, confidence__lte=1),
+                name="confidence_range_person",
+            )
+        ]
 
     def __str__(self):
         return self.full_name
