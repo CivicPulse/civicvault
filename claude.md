@@ -22,7 +22,5 @@ Commit regularly with clear, descriptive messages that follow the conventional c
 
 Follow python best practices for code structure, naming conventions, and design patterns. This includes using meaningful variable and function names, organizing code into modules and packages, and adhering to the principles of object-oriented programming where appropriate. Follow PEP 8 for style guidelines, and use type hints to improve code readability and maintainability.
 
-Use pydantic-settings for configuration management, to keep configuration separate from code and make it easier to manage different environments (development, staging, production).
-
 Use pydantic for data validation and parsing, to ensure that data is in the expected format and to catch errors early in the development process.
 
