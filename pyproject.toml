@@ -12,6 +12,8 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "pytest>=9.0.3",
+    "pytest-django>=4.12.0",
     "ruff>=0.15.15",
 ]
 
@@ -23,3 +25,8 @@ extend-exclude = ["migrations", "archive_data"]
 [tool.ruff.lint]
 # pycodestyle, pyflakes, isort, flake8-bugbear, pyupgrade, flake8-django
 select = ["E", "F", "I", "B", "UP", "DJ"]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "civicvault.settings"
+python_files = ["test_*.py", "tests.py", "*_test.py"]
+addopts = "--reuse-db"
