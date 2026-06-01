@@ -38,3 +38,10 @@ def test_board_event_files_map_small():
     ev = parse_event_md(fixture_text("board", "event.md"))
     assert ev.meeting_id == "124791"
     assert "supt-board-041725-ppt.pptx" in ev.files
+
+
+def test_board_dash_separated_code_title_is_clean():
+    ev = parse_event_md(fixture_text("board", "event.md"))
+    by_code = {it.code: it for it in ev.agenda_items if it.code}
+    assert by_code["PS-1"].title == "Certified Personnel Report"
+    assert not by_code["PS-1"].title.startswith("-")

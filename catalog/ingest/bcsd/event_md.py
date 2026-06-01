@@ -60,8 +60,7 @@ def parse_event_md(text: str) -> ParsedEvent:
     mode = "meta"
 
     for raw in lines:
-        line = raw.rstrip()
-        stripped = line.strip()
+        stripped = raw.strip()
         if stripped.startswith("## Agenda Items"):
             mode = "agenda"
             continue
@@ -95,6 +94,7 @@ def parse_event_md(text: str) -> ParsedEvent:
             title = content
             if code:
                 title = title[code_m.end() :].strip()
+                title = re.sub(r"^[-–—]\s*", "", title)
             title = _TYPE.sub("", title).strip()
             items.append(
                 EventItem(
