@@ -1,8 +1,8 @@
 """Core views for CivicVault.
 
 `home` is the public landing placeholder. `health` is a machine-readable
-liveness/readiness endpoint intended for load balancers, K8s probes, and uptime
-checks (see project_brief.md §12 step 1).
+liveness endpoint intended for load balancers, K8s probes, and uptime checks
+(see project_brief.md §12 step 1).
 """
 
 from django.http import JsonResponse
@@ -15,24 +15,16 @@ def home(request):
 
 
 def health(request):
-    """Report service health as JSON.
+    """Liveness check: report that the process is up and serving requests.
 
-    TODO(you): decide what "healthy" means for CivicVault and implement the check.
+    This deliberately does NOT touch the database. A liveness probe answers only
+    "is this process alive?" — if it returns, the WSGI worker accepted a request
+    and ran Python, which is all liveness needs to know. Keeping the database out
+    of it means a transient Postgres blip can't make K8s restart otherwise-healthy
+    pods (a DB-coupled liveness probe can cause a restart storm under DB pressure).
 
-    Design decision worth your input — this is a liveness vs. readiness call:
-      - A *liveness* check just confirms the process is up (always return ok).
-      - A *readiness* check confirms the app can actually serve requests, which
-        for us means the database is reachable (CivicVault is useless without
-        Postgres). For that, add `from django.db import connection` up top.
-
-    Suggested shape (5-10 lines): try a trivial DB query
-    (`connection.ensure_connection()` or `SELECT 1` via `connection.cursor()`),
-    return JsonResponse({"status": "ok"}) on success, and on failure return
-    JsonResponse({"status": "error", "detail": "<reason>"}, status=503).
-
-    Consider: do you want the endpoint to fail (503) when the DB is down so K8s
-    pulls the pod from rotation, or stay 200 so a transient DB blip doesn't kill
-    every replica at once? That trade-off is yours to make.
+    Upgrade path: when we want a *readiness* probe (gate traffic on the DB being
+    reachable), add a separate endpoint that runs a trivial query and returns 503
+    on failure — readiness, not liveness, is the right place for that check.
     """
-    # Placeholder so the site runs today; replace with your chosen check.
     return JsonResponse({"status": "ok"})
