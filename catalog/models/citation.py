@@ -23,6 +23,11 @@ class Citation(TimeStamped):
     object_id = models.PositiveBigIntegerField()
     fact = GenericForeignKey("content_type", "object_id")
 
+    # on_delete asymmetry is intentional: a citation is document-anchored, so it
+    # dies with its document (CASCADE). The transcript_segment is an optional pin,
+    # so SET_NULL preserves a citation that still has document evidence. A segment
+    # that is the SOLE evidence cannot be deleted — the citation_has_evidence CHECK
+    # blocks it (safe failure), which is correct.
     document = models.ForeignKey(
         Document, null=True, blank=True, on_delete=models.CASCADE, related_name="citations"
     )
@@ -49,4 +54,5 @@ class Citation(TimeStamped):
         ]
 
     def __str__(self):
-        return f"Citation({self.content_type} #{self.object_id})"
+        evidence = self.document or self.transcript_segment
+        return f"Citation({self.content_type} #{self.object_id} → {evidence})"
