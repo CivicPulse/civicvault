@@ -1,0 +1,81 @@
+"""Adapter contract: framework-neutral parsed records (brief §14.3).
+
+Every ingestion adapter emits these dataclasses; the generic loader consumes
+them. Intentionally NO Django imports so parsers stay pure and unit-testable.
+String enum values mirror the model TextChoices values (e.g. "yea", "action",
+"unanimous") so the loader maps them with a plain lookup.
+"""
+
+import datetime
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class ParsedPerson:
+    """A person mention. `full_name` is normalized; `raw_name` is verbatim source."""
+
+    full_name: str
+    raw_name: str
+    role_hint: str = ""  # trailing roster role, e.g. "President"
+
+
+@dataclass(frozen=True)
+class ParsedVote:
+    person: ParsedPerson
+    value: str  # "yea" | "nay" | "abstain" | "absent"
+
+
+@dataclass(frozen=True)
+class ParsedMotion:
+    kind: str  # "simple" | "initial" | "amended"
+    sequence: int
+    moved_by: ParsedPerson | None
+    seconded_by: ParsedPerson | None
+    result_text: str
+    status: str  # "passed" | "failed" | "unanimous" | "none"
+
+
+@dataclass(frozen=True)
+class ParsedAppearance:
+    person: ParsedPerson
+    role: str  # "member" | "invocation" | "pledge" | "speaker" | "presenter" | "staff"
+
+
+@dataclass(frozen=True)
+class ParsedAgendaItem:
+    order: int
+    code: str
+    title: str
+    item_type: str  # "action" | "presentation" | "information" | "other"
+    reading_stage: str  # "first" | "second" | ""
+    section: str
+    outcome_text: str = ""
+    outcome_status: str = "none"
+    motions: tuple[ParsedMotion, ...] = ()
+    votes: tuple[ParsedVote, ...] = ()
+    file_names: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class ParsedDocument:
+    kind: str  # "minutes" | "agenda" | "other"
+    title: str
+    source_path: str
+    text: str
+
+
+@dataclass(frozen=True)
+class ParsedMeeting:
+    date: datetime.date
+    start_time: datetime.time | None
+    kind_slug: str
+    source_meeting_id: str
+    source_url: str
+    source_path: str
+    folder_name: str
+    title: str
+    roster: tuple[ParsedPerson, ...] = ()
+    agenda_items: tuple[ParsedAgendaItem, ...] = ()
+    appearances: tuple[ParsedAppearance, ...] = ()  # invocation/pledge/visitors (NOT roster)
+    has_minutes: bool = False
+    raw_documents: tuple[ParsedDocument, ...] = ()
