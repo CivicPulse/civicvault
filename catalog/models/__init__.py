@@ -1,7 +1,7 @@
 from .base import Reviewable, TimeStamped
 from .citation import Citation
 from .document import Document
-from .facts import Appearance, Vote
+from .facts import Appearance, Motion, Vote
 from .media import MediaAsset, MeetingCoverage, Transcript, TranscriptSegment
 from .meeting import AgendaItem, Meeting
 from .org import Jurisdiction, Organization, Person, Source
@@ -15,6 +15,7 @@ __all__ = [
     "MediaAsset",
     "Meeting",
     "MeetingCoverage",
+    "Motion",
     "Organization",
     "Person",
     "Reviewable",

@@ -9,6 +9,7 @@ from catalog.models import (
     MediaAsset,
     Meeting,
     MeetingCoverage,
+    Motion,
     Organization,
     Person,
     Source,
@@ -90,6 +91,20 @@ class DocumentAdmin(admin.ModelAdmin):
     list_display = ("title", "kind", "meeting", "ocr_status")
     list_filter = ("kind", "ocr_status", "access_level")
     search_fields = ("title",)
+
+
+@admin.register(Motion)
+class MotionAdmin(admin.ModelAdmin):
+    list_display = (
+        "agenda_item",
+        "kind",
+        "sequence",
+        "moved_by",
+        "seconded_by",
+        "status",
+        "reviewed",
+    )
+    list_filter = ("kind", "status", "reviewed")
 
 
 @admin.register(Vote)
