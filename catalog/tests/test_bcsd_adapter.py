@@ -35,6 +35,9 @@ def test_committee_meeting_parsed(tmp_path):
     assert "hmh.pdf" in fss3.file_names
     assert len(by_code["FSS-8"].motions) == 2
 
+    # Substring guard: FSS-1 must NOT absorb FSS-10/FSS-11 attachments.
+    assert by_code["FSS-1"].file_names == ("fss-1m-1.PPT",)
+
 
 def test_board_roll_call_carried_through(tmp_path):
     folder = _make_folder(tmp_path, "board", "2025-04-17_1830_board-meeting_mid-124791")

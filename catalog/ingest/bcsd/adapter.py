@@ -1,5 +1,6 @@
 """BCSD Source-A adapter: a meeting folder -> one ParsedMeeting IR (brief §4-§5)."""
 
+import re
 from pathlib import Path
 
 from catalog.ingest.bcsd.agenda_md import parse_agenda_md
@@ -17,8 +18,14 @@ def _files_for_item(files: dict[str, str], code: str, title: str) -> tuple[str, 
     """Filenames whose attribution text references this item's code or title."""
     out = []
     needle = code or title
+    if not needle:
+        return ()
+    # Word-boundary match so "FSS-1" does not also match "FSS-10"/"FSS-11"
+    # (the trailing digit is a word char). re.escape keeps title needles
+    # (which may contain dashes/parens) literal.
+    pattern = re.compile(rf"\b{re.escape(needle)}\b")
     for fname, attr in files.items():
-        if needle and needle in attr:
+        if pattern.search(attr):
             out.append(fname)
     return tuple(out)
 
@@ -32,6 +39,7 @@ def parse_meeting_folder(folder: Path) -> ParsedMeeting:
     minutes_path = folder / "minutes.md"
     agenda_path = folder / "agenda.md"
     has_minutes = minutes_path.exists()
+    agenda_text = agenda_path.read_text(encoding="utf-8") if agenda_path.exists() else None
 
     raw_documents = [
         ParsedDocument(
@@ -54,8 +62,7 @@ def parse_meeting_folder(folder: Path) -> ParsedMeeting:
             )
         )
     else:
-        if agenda_path.exists():
-            agenda_text = agenda_path.read_text(encoding="utf-8")
+        if agenda_text is not None:
             event_items = tuple(parse_agenda_md(agenda_text))
         else:
             event_items = event.agenda_items
@@ -63,13 +70,13 @@ def parse_meeting_folder(folder: Path) -> ParsedMeeting:
         roster = ()
         appearances = ()
 
-    if agenda_path.exists():
+    if agenda_text is not None:
         raw_documents.append(
             ParsedDocument(
                 kind="agenda",
                 title="agenda.md",
                 source_path=str(agenda_path),
-                text=agenda_path.read_text(encoding="utf-8"),
+                text=agenda_text,
             )
         )
 
@@ -77,6 +84,9 @@ def parse_meeting_folder(folder: Path) -> ParsedMeeting:
     for ev in event_items:
         outcome = None
         if minutes is not None:
+            # Code-less items are keyed by title, so two code-less items sharing
+            # a title would shadow each other in minutes.outcomes (a known,
+            # low-risk limitation for the current BCSD data).
             outcome = minutes.outcomes.get(ev.code) or minutes.outcomes.get(ev.title)
         items.append(
             ParsedAgendaItem(
