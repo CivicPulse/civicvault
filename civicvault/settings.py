@@ -135,6 +135,17 @@ USE_TZ = True
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
+# Object storage (Cloudflare R2 via the S3 API; R2 has zero egress fees).
+# Unset R2_BUCKET → local filesystem storage so dev works without credentials.
+from civicvault.storage import build_storages  # noqa: E402
+
+STORAGES = build_storages(
+    bucket=env("R2_BUCKET", default=""),
+    endpoint_url=env("R2_ENDPOINT_URL", default=""),
+    access_key=env("R2_ACCESS_KEY_ID", default=""),
+    secret_key=env("R2_SECRET_ACCESS_KEY", default=""),
+)
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/6.0/ref/settings/#default-auto-field
 
