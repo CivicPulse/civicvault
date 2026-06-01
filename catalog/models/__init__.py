@@ -1,4 +1,11 @@
 from .base import Reviewable, TimeStamped
-from .org import Jurisdiction, Source
+from .org import Jurisdiction, Organization, Person, Source
 
-__all__ = ["Jurisdiction", "Reviewable", "Source", "TimeStamped"]
+__all__ = [
+    "Jurisdiction",
+    "Organization",
+    "Person",
+    "Reviewable",
+    "Source",
+    "TimeStamped",
+]

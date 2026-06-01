@@ -1,6 +1,7 @@
+from django.contrib.postgres.fields import ArrayField
 from django.db import models
 
-from .base import TimeStamped
+from .base import Reviewable, TimeStamped
 
 
 class Jurisdiction(TimeStamped):
@@ -40,3 +41,59 @@ class Source(TimeStamped):
 
     def __str__(self):
         return self.slug
+
+
+class Organization(Reviewable):
+    """Any organization: meeting body, school, vendor, nonprofit, campaign.
+    Bodies are agency-scoped (jurisdiction set); vendors are cross-agency
+    (jurisdiction null) so the same vendor unifies across agencies (§14.4)."""
+
+    class Kind(models.TextChoices):
+        DISTRICT = "district", "District"
+        SCHOOL = "school", "School"
+        COMPANY = "company", "Company (vendor)"
+        NONPROFIT = "nonprofit", "Nonprofit"
+        COMMITTEE = "committee", "Committee"
+        CAMPAIGN = "campaign", "Campaign"
+        OTHER = "other", "Other"
+
+    name = models.CharField(max_length=255)
+    aka = ArrayField(models.CharField(max_length=255), default=list, blank=True)
+    slug = models.SlugField(max_length=255)
+    kind = models.CharField(max_length=32, choices=Kind.choices, default=Kind.OTHER)
+    jurisdiction = models.ForeignKey(
+        Jurisdiction,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="organizations",
+    )
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["jurisdiction", "slug"],
+                name="uniq_org_slug_per_jurisdiction",
+            ),
+            models.UniqueConstraint(
+                fields=["slug"],
+                condition=models.Q(jurisdiction__isnull=True),
+                name="uniq_global_org_slug",
+            ),
+        ]
+
+    def __str__(self):
+        return self.name
+
+
+class Person(Reviewable):
+    """A canonical individual after dedup (brief §7)."""
+
+    full_name = models.CharField(max_length=255)
+    aka = ArrayField(models.CharField(max_length=255), default=list, blank=True)
+    slug = models.SlugField(max_length=255, unique=True)
+    notes = models.TextField(blank=True)
+
+    def __str__(self):
+        return self.full_name
