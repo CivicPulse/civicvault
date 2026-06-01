@@ -1,12 +1,16 @@
-# Bibb County Civic Knowledge Base — Build Brief for Claude Code
+# Civic Knowledge Base — Build Brief for Claude Code
 
 **Purpose of this document.** Hand this to Claude Code as project context. It captures everything established during planning *and* everything verified by inspecting the real archive, so the implementing agent does not have to rediscover file formats, naming conventions, or edge cases. It deliberately contains **no code** — only specifications, data dictionaries, and decisions. Where it says "spec," the agent designs the implementation.
+
+**Scope note.** The platform is a civic knowledge base for **local government generally** — intended to grow to encompass many government agencies and organizations, with much of its value coming from connections *across* them. This brief specifies the platform architecture (which is **agency-agnostic by design**) together with the onboarding of the **first dataset: the Bibb County (GA) Board of Education / School District**. BCSD is the proving ground for the model and pipeline, not the boundary of the project. Sections 4–6 and 9 are BCSD-specific (its file formats and quirks); sections 2–3, 7, 10–12 describe the reusable core; **section 14 explains how to onboard additional agencies.**
 
 ---
 
 ## 1. Project in one paragraph
 
-A public, web-first knowledge base for the Bibb County (GA) Board of Education / School District. Anyone (anonymous, no login) can full-text search the archive, open a profile for a person / organization / meeting, see every structured fact traced back to its source document, follow relationships through an interactive color-coded graph, jump from a transcript hit to the exact second of the meeting video on YouTube, and share any view as a stable URL. The guiding principle is **provenance**: every asserted fact links to the document (and location) that evidences it.
+A public, web-first knowledge base for **local government** — meetings, documents, policies, people, organizations, money, and the relationships between them, **across many agencies and organizations**. Anyone (anonymous, no login) can full-text search the archive, open a profile for a person / organization / meeting, see every structured fact traced back to its source document, follow relationships through an interactive color-coded graph, jump from a transcript hit to the exact second of the meeting video on YouTube, and share any view as a stable URL. The guiding principle is **provenance**: every asserted fact links to the document (and location) that evidences it.
+
+**First dataset:** the **Bibb County (GA) Board of Education / School District** — a large existing archive (2013–present). Additional agencies (city/county governments, boards, authorities, committees, campaigns, etc.) are added later by writing an ingestion adapter (§14), not by changing the core.
 
 **Primary user:** anonymous public. **Builder/operator:** solo. **Software:** open-source, self-hostable.
 
@@ -164,6 +168,8 @@ Anchor matching on the **meeting date**, then resolve which meeting(s) that date
 
 Meeting-centric, with **generic provenance**. Express in Django models; the agent chooses field types. Entities and their essential fields/relationships:
 
+> **Agency-agnostic.** This model is not BCSD-specific. A "meeting body" is just an Organization, a vendor is just an Organization, an official is just a Person — so any agency (a city council, a county commission, an authority) fits the same entities. The only multi-agency additions recommended are an **Agency/Jurisdiction** grouping and a **Source/Collection** tag for provenance and filtering; see §14.
+
 - **Person** — canonical individual after dedup. Fields: full_name, aka[], slug, notes.
 - **Organization** — kind ∈ {district, school, company(vendor), nonprofit, committee, campaign, other}; name, aka[], slug.
 - **Office** — a seat/role tied to an Organization (e.g., "Board Member, District 3").
@@ -282,3 +288,57 @@ Provide the agent with: this brief, read access to the four trees (or a represen
 - **Coverage of recordings:** what fraction of meeting dates actually have a recording? (Determines how prominent the video feature is.)
 - **Multi-upload dates:** confirm the dedup rule (longest duration + most-complete sidecar set as primary) matches reality on a few sampled dates.
 - **Officials over time:** is there a roster history (who served when) beyond per-meeting attendance, to populate OfficeTenure with accurate start/end dates? If not, derive tenure spans from first/last attendance as an approximation, flagged as inferred.
+
+---
+
+## 14. Adding a new agency (generalizing beyond BCSD)
+
+BCSD is the first dataset, not the design target. The platform is meant to grow to many agencies and organizations, and a large part of its value is cross-agency: the same vendor, official, or dollar surfacing in more than one body. This section defines what stays constant and what each new agency requires, so onboarding the second and third agencies does not mean reworking the core.
+
+### 14.1 What is reused as-is (the core — agency-independent)
+- **The entire data model (§7)** — Person, Organization, Office/Tenure, Meeting, AgendaItem, Document, MediaAsset, Transcript/Segment, MeetingCoverage, Affiliation, Vote, Appearance, Award/Bid, Relationship, Citation. Any agency's meetings, documents, officials, and vendors map onto these same entities.
+- **Provenance model** — facts-as-proposals-with-citations, admin review before publish.
+- **Search, graph, profiles, deep-linking, shareable URLs** — all operate over the model, not over any agency's file layout.
+- **Entity resolution (Splink)** — same machinery; per-agency seeding (see §14.4).
+- **Storage, deployment, edge protection** — R2 + K8s + Cloudflare are unchanged.
+
+### 14.2 What is agency-specific (the adapter)
+Everything that knows about a particular agency's raw records is isolated in an **ingestion adapter**. Per agency, that is:
+- Its **source layout** (folder trees / portals / APIs) and naming conventions.
+- Its **file-format parsers** (the analog of §5 for that agency's minutes, agendas, metadata, transcripts).
+- Its **media↔meeting matching** rules (the analog of §6, if it has recordings).
+- Its **document-kind and item-type vocabularies** mapped onto the shared enums.
+
+Sections 4–6 and 9 of this brief *are* the BCSD adapter's specification. A new agency gets its own equivalent — ideally a short companion doc per agency — while this core brief stays stable.
+
+### 14.3 The ingestion-adapter contract (spec)
+An adapter is responsible for reading one agency's raw records and emitting the shared entities. Define a common adapter interface (the agent designs the shape) such that every adapter, regardless of source, produces:
+1. **Agency / bodies** — the Organization(s) that hold meetings (and a Jurisdiction; see §14.5).
+2. **Meetings** with date, time, kind, source IDs/URLs, and source paths.
+3. **AgendaItems** with codes, types, outcomes, and (where present) per-member votes.
+4. **Documents** with extracted text, OCR status, R2 keys, and meeting/agenda-item links.
+5. **MediaAssets + Transcripts/Segments + MeetingCoverage** (where recordings exist).
+6. **Proposed Persons/Organizations + Affiliations/Appearances/Awards/Relationships**, each with **Citations**.
+All output is **proposals pending admin review**, identical to BCSD. The core pipeline (resolution → review → publish → index → graph) then runs unchanged. New adapters run as their own Procrastinate jobs; the join/resolution stage is shared.
+
+### 14.4 Cross-agency entity resolution (the high-value, high-risk part)
+- **Shared organizations are the payoff.** A vendor like "CDW" or "Dell," or a firm that contracts with several agencies, should resolve to **one** canonical Organization across agencies — that cross-linking is much of the platform's value. Configure Splink to resolve vendors/firms globally.
+- **People need more care.** Same-name individuals across different jurisdictions are not necessarily the same person; an official who moves between bodies *is*. Use higher-precision blocking for Person (corroborating signals beyond name), and lean on the admin review/merge step. Never auto-merge people across agencies on name alone.
+- **Seed per agency.** Each agency's authoritative rosters/board lists are high-precision anchors for its own people, as the BCSD attendance roster is here.
+
+### 14.5 Recommended model additions for multi-agency (small, do early)
+- **Jurisdiction / Agency** — a lightweight grouping entity (e.g., "Bibb County Board of Education," "City of Macon Council") that meetings, offices, and source documents belong to. Enables filtering search and the graph by agency, scoping calendars, and coloring graph nodes by agency. (An Organization can represent the body itself; the Jurisdiction/Agency grouping is for navigation, filtering, and attribution.)
+- **Source / Collection** — a provenance tag on Document/MediaAsset recording which archive/dataset and adapter run it came from (e.g., `bcsd-boe-meetings`, `bcsd-policies`). Useful for re-ingestion, audits, and "where did this come from."
+- **Slug namespacing** — namespace slugs to avoid collisions across agencies (e.g., two different "finance-committee" bodies). Recommend agency-scoped slugs for bodies/offices/meetings; keep globally-shared entities (vendors, cross-agency people) un-namespaced so they unify.
+- Adding these now (even unused by a single agency) avoids a migration later when the second agency arrives.
+
+### 14.6 Onboarding checklist for a new agency
+1. Inventory the agency's raw records; document its layout and formats (a §4–§6 analog).
+2. Register the **Jurisdiction/Agency** and its meeting **bodies**; assign a **Source/Collection** tag.
+3. Write the **ingestion adapter** to the §14.3 contract; unit-test against known-good sample records.
+4. Run ingestion → resolution; in review, watch especially for **cross-agency org merges** (good) and **false cross-agency person merges** (block).
+5. Verify search filters, agency-scoped graph coloring, and that shared vendors/officials correctly span agencies.
+6. Confirm media/transcript handling if the agency publishes recordings (matching + deep links).
+
+### 14.7 Build-order implication
+The §12 order is unchanged for the first agency. Just two adjustments to do **during** the BCSD build so the platform is multi-agency-ready without rework: in step 2 (schema), include the **Jurisdiction/Agency** and **Source/Collection** entities and slug namespacing from §14.5; in steps 3–5, keep all BCSD-specific parsing/matching behind a clean **adapter boundary** rather than wiring it directly into the core pipeline. Onboarding a second agency then means writing a new adapter, not refactoring the core.
