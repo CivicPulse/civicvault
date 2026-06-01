@@ -1,0 +1,119 @@
+# Committee Meeting
+
+- **Meeting ID:** 124789
+- **Date / Time:** 04/17/2025 - 04:00 PM
+- **Meeting Type:** Committee Meeting
+- **Source URL:** https://simbli.eboardsolutions.com/SB_Meetings/ViewMeeting.aspx?S=4013&MID=124789
+- **Folder:** `2025-04-17_1600_committee-meeting_mid-124789`
+- **Agenda Saved:** yes
+- **Minutes Saved:** yes
+- **Attachments Downloaded:** 60
+
+## Agenda Items
+
+- I. Call to Order
+- II. Approve Agenda
+- III. INVOCATION
+- IV. INSTRUCTIONAL SERVICES COMMITTEE
+- i. IS-1 School Consolidation Update and Recommendation (PRESENTATION)
+- ii. IS-2 Safety and Security Updates (PRESENTATION)
+- V. FISCAL/SUPPORT SERVICES COMMITTEE
+- i. FSS-1 Monthly Financial Statement Review (PRESENTATION)
+- ii. FSS-3 Mathematics Instructional Resources Adoption Approval (ACTION)
+- iii. FSS-4 Architectural Services for the Renovations of Innovation &amp; Technology Academy Project Phase 2 (Formerly Butler Collision Center) (ACTION)
+- iv. FSS-5 Construction Management At-Risk Services for the Renovations of Innovation &amp; Technology Academy Project Phase 2 (Formerly Butler Collision Center) (ACTION)
+- v. FSS-6 RFP 25-023 Architectural Services for Northwoods Academy Gymnasium (ACTION)
+- vi. FSS-7 School Bus Purchase (ACTION)
+- vii. FSS-8 Student Chromebooks FY26 (ACTION)
+- viii. FSS-9 Lightspeed Renewal – FY26 (ACTION)
+- ix. FSS-10 Microsoft License Renewal FY26 (ACTION)
+- x. FSS-11 Multi-Year Lease Purchase Agreement with Lenovo Financial Services (ACTION)
+- VI. POLICIES AND RULES COMMITTEE
+- i. PR-1 Policy GARHA, Employee Sick Leave Bank (ACTION - Second Reading)
+- ii. PR-2 Policy JBCCA, Student Assignment to Schools (ACTION - Second Reading)
+- iii. PR-3 Policy AFC, Emergency Closings (ACTION - Second Reading)
+- iv. PR-4 Policy DIA, Accounting System (INFORMATION - First Reading)
+- v. PR-5 Policy EDDA, Special Use of School Buses (INFORMATION - First Reading)
+- vi. PR-6 Policy IFCD, School Volunteers (INFORMATION - First Reading)
+- VII. PERSONNEL SERVICES COMMITTEE
+- i. Executive Session – Land/Legal/Personnel/Student/School Safety/Cyber Security Matters
+- ii. PS-1 Certified Personnel Report (ACTION)
+- iii. PS-2 Classified Personnel Report (ACTION)
+- iv. PS-3 Classified Personnel Report (INFORMATION)
+- v. PS-5 Administrators Recommendation (ACTION)
+- vi. PS-6 Central Office Recommendation (ACTION)
+- VIII. FOR INFORMATION
+- i. FI-1 2016 and 2021 Capital Improvement Programs
+- a. ESPLOST 2016 Reports
+- b. ESPLOST 2021 Reports
+- c. Bonds of 2020 Report
+- ii. Fl-2 Investments and Investment Income Report
+- iii. FI-3 Discipline and Attendance Update
+- iv. FI-4 Field Trips
+- a. April 11-12, 2025 - Westside High School Seniors - Orlando, FL, Universal Studios
+- b. April 16, 2025 (One-Day Trip) - Hutchings College &amp; Career Academy CTAE/ROTC - Arlington, VA / Washington, D.C.
+- c. May 11-16, 2025 – Central High School Science Fair Winners - Columbus, OH
+- IX. Adjourn
+
+## Files
+
+- `school-consolidation-boe-april-2025-final-v2-0.pptx` (i. IS-1 School Consolidation Update and Recommendation (PRESENTATION))
+- `bcsd-safety-board-presentation-april-2025-1.pptx` (ii. IS-2 Safety and Security Updates (PRESENTATION))
+- `fss-1m-1.PPT` (i. FSS-1 Monthly Financial Statement Review (PRESENTATION))
+- `action-memo-math-adoption-signed.pdf` (ii. FSS-3 Mathematics Instructional Resources Adoption Approval (ACTION))
+- `hmh.pdf` (ii. FSS-3 Mathematics Instructional Resources Adoption Approval (ACTION))
+- `deltamth-hs-quote-52159.pdf` (ii. FSS-3 Mathematics Instructional Resources Adoption Approval (ACTION))
+- `cengage.pdf` (ii. FSS-3 Mathematics Instructional Resources Adoption Approval (ACTION))
+- `bfw-statistics.pdf` (ii. FSS-3 Mathematics Instructional Resources Adoption Approval (ACTION))
+- `action-memo-architectural-services-innov-tech-academy-phase-2-signed.pdf` (iii. FSS-4 Architectural Services for the Renovations of Innovation &amp; Technology Academy Project Phase 2 (Formerly Butler Collision Center) (ACTION))
+- `action-memo-cm-risk-services-innovation-technology-academy-signed.pdf` (iv. FSS-5 Construction Management At-Risk Services for the Renovations of Innovation &amp; Technology Academy Project Phase 2 (Formerly Butler Collision Center) (ACTION))
+- `action-memo-rfp-25-023-archit-serv-for-northwoods-academy-gymnasium-signed.pdf` (v. FSS-6 RFP 25-023 Architectural Services for Northwoods Academy Gymnasium (ACTION))
+- `action-memo-school-bus-purchase-signed.pdf` (vi. FSS-7 School Bus Purchase (ACTION))
+- `72-pass-gasoline-2026-model-swc-bibb-co-3-14.25` (vi. FSS-7 School Bus Purchase (ACTION))
+- `action-memo-student-chromebooks-fy26-signed.pdf` (vii. FSS-8 Student Chromebooks FY26 (ACTION))
+- `chromebooks-full-4-year-quote-2025-2029.pdf` (vii. FSS-8 Student Chromebooks FY26 (ACTION))
+- `chromebooks-financing-full-4-year-quote.pdf` (vii. FSS-8 Student Chromebooks FY26 (ACTION))
+- `action-memo-lightspeed-renewal-fy26-signed.pdf` (viii. FSS-9 Lightspeed Renewal – FY26 (ACTION))
+- `lightspeed-products-2026-2030-agreement.pdf` (viii. FSS-9 Lightspeed Renewal – FY26 (ACTION))
+- `lightspeed-products-fy26-quote.pdf` (viii. FSS-9 Lightspeed Renewal – FY26 (ACTION))
+- `action-memo-microsoft-license-renewal-fy26-signed.pdf` (ix. FSS-10 Microsoft License Renewal FY26 (ACTION))
+- `microsoft-quote-fy26.pdf` (ix. FSS-10 Microsoft License Renewal FY26 (ACTION))
+- `action-memo-lenovo-multi-year-lease-purchase-revised-signed.pdf` (x. FSS-11 Multi-Year Lease Purchase Agreement with Lenovo Financial Services (ACTION))
+- `bibb-board-resolution-to-approve-lease-purchase-with-lenovo-financial-services-updated.pdf` (x. FSS-11 Multi-Year Lease Purchase Agreement with Lenovo Financial Services (ACTION))
+- `action-memo-policy-garha-second-reading-signed.pdf` (i. PR-1 Policy GARHA, Employee Sick Leave Bank (ACTION - Second Reading))
+- `board-policy-garha-employee-sick-leave-bank-2nd-reading.pdf` (i. PR-1 Policy GARHA, Employee Sick Leave Bank (ACTION - Second Reading))
+- `regulation-garha-r-1-employee-sick-leave-bank-sick-leave-bank-2nd-reading-edits-accepted.pdf` (i. PR-1 Policy GARHA, Employee Sick Leave Bank (ACTION - Second Reading))
+- `employee-sick-leave-bank-exhibit.pdf` (i. PR-1 Policy GARHA, Employee Sick Leave Bank (ACTION - Second Reading))
+- `action-memo-policy-jbcca-second-reading-signed.pdf` (ii. PR-2 Policy JBCCA, Student Assignment to Schools (ACTION - Second Reading))
+- `board-policy-jbcca-student-assignment-to-schools-2nd-reading.pdf` (ii. PR-2 Policy JBCCA, Student Assignment to Schools (ACTION - Second Reading))
+- `action-memo-policy-afc-second-reading-signed.pdf` (iii. PR-3 Policy AFC, Emergency Closings (ACTION - Second Reading))
+- `board-policy-afc-emergency-closings-2nd-reading.pdf` (iii. PR-3 Policy AFC, Emergency Closings (ACTION - Second Reading))
+- `regulation-afc-r-1-emergency-closings-2nd-reading.pdf` (iii. PR-3 Policy AFC, Emergency Closings (ACTION - Second Reading))
+- `information-memo-policy-dia-first-reading-signed.pdf` (iv. PR-4 Policy DIA, Accounting System (INFORMATION - First Reading))
+- `board-policy-dia-accounting-system-ppab-clean.pdf` (iv. PR-4 Policy DIA, Accounting System (INFORMATION - First Reading))
+- `board-policy-dia-accounting-system-ppab-revisions.pdf` (iv. PR-4 Policy DIA, Accounting System (INFORMATION - First Reading))
+- `regulation-dia-r-1-accounting-system-ppab-clean-12120007.2)` (iv. PR-4 Policy DIA, Accounting System (INFORMATION - First Reading))
+- `regulation-dia-r-1-accounting-system-ppab-revisions.pdf` (iv. PR-4 Policy DIA, Accounting System (INFORMATION - First Reading))
+- `information-memo-policy-edda-first-reading-signed.pdf` (v. PR-5 Policy EDDA, Special Use of School Buses (INFORMATION - First Reading))
+- `board-policy-edda-special-use-of-school-buses-ppab-clean.pdf` (v. PR-5 Policy EDDA, Special Use of School Buses (INFORMATION - First Reading))
+- `board-policy-edda-special-use-of-school-buses-ppab-revisions.pdf` (v. PR-5 Policy EDDA, Special Use of School Buses (INFORMATION - First Reading))
+- `regulation-edda-r-1-special-use-of-school-buses-ppab-clean.pdf` (v. PR-5 Policy EDDA, Special Use of School Buses (INFORMATION - First Reading))
+- `regulation-edda-r-1-special-use-of-school-buses-ppab-revisions.pdf` (v. PR-5 Policy EDDA, Special Use of School Buses (INFORMATION - First Reading))
+- `information-memo-policy-ifcd-first-reading-signed.pdf` (vi. PR-6 Policy IFCD, School Volunteers (INFORMATION - First Reading))
+- `board-policy-ifcd-school-volunteers-ppab-clean.pdf` (vi. PR-6 Policy IFCD, School Volunteers (INFORMATION - First Reading))
+- `regulation-ifcd-r-1-school-volunteers-ppab-clean-12120365.6)` (vi. PR-6 Policy IFCD, School Volunteers (INFORMATION - First Reading))
+- `regulation-ifcd-r-1-school-volunteers-ppab-revisions.pdf` (vi. PR-6 Policy IFCD, School Volunteers (INFORMATION - First Reading))
+- `ps1-certfied-personnel-actions-4-14-2025.pdf` (ii. PS-1 Certified Personnel Report (ACTION))
+- `ps2-board-17apr25.pdf` (iii. PS-2 Classified Personnel Report (ACTION))
+- `ps3-board-17apr25.pdf` (iv. PS-3 Classified Personnel Report (INFORMATION))
+- `ps5.pdf` (v. PS-5 Administrators Recommendation (ACTION))
+- `ps6.pdf` (vi. PS-6 Central Office Recommendation (ACTION))
+- `fi-1-a-2016-esplost-feb-2025-apr-2025-board-meeting.pdf` (a. ESPLOST 2016 Reports)
+- `fi-1-b-2021-esplost-feb-2025-apr-2025-board-meeting-updated.pdf` (b. ESPLOST 2021 Reports)
+- `fi-1-c-bonds-of-feb-2025-2025-apr-2025-board-meeting.pdf` (c. Bonds of 2020 Report)
+- `08-fi-2-february-fy25-investment-report.pdf` (ii. Fl-2 Investments and Investment Income Report)
+- `board-report-3-27-25.pptx` (iii. FI-3 Discipline and Attendance Update)
+- `information-memo-attendance-and-discipline-reformatted.pdf` (iii. FI-3 Discipline and Attendance Update)
+- `field-trip-westside-hs-senior-grad-bash-orlando-fl-041125-041225.pdf` (a. April 11-12, 2025 - Westside High School Seniors - Orlando, FL, Universal Studios)
+- `fy25-field-trip-ctae-rotc-arlington-va-washington-dc-041625.pdf` (b. April 16, 2025 (One-Day Trip) - Hutchings College &amp; Career Academy CTAE/ROTC - Arlington, VA / Washington, D.C.)
+- `field-trip-central-hs-science-fair-winners-columbus-oh-051125-051625.pdf` (c. May 11-16, 2025 – Central High School Science Fair Winners - Columbus, OH)
