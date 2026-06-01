@@ -60,6 +60,33 @@ def test_variant3_initial_and_amended():
     assert motions[1].kind == "amended"
     assert motions[1].sequence == 1
     assert motions[1].moved_by.full_name == "James Freeman"
+    assert motions[1].seconded_by is None
+
+
+def test_variant3_amended_without_intervening_voting_line():
+    # Board "APPROVAL OF AGENDA": initial+seconded, then amended directly, one Voting line.
+    block = [
+        "A motion was entertained to approve the agenda.",
+        "A motion was then made to amend the agenda, removing FSS-2 and PR-2 ...",
+        "",
+        "Initial Motion made by: Dr. Henry Ficklin",
+        "",
+        "Initial Motion seconded by: Dr. Sundra Woodford",
+        "",
+        "Amended Motion made by: Mr. James Freeman",
+        "",
+        "Voting: Unanimously Approved",
+    ]
+    text, motions, votes = parse_outcome_block(block)
+    assert len(motions) == 2
+    assert motions[0].kind == "initial"
+    assert motions[0].moved_by.full_name == "Henry Ficklin"
+    assert motions[0].seconded_by.full_name == "Sundra Woodford"
+    assert motions[0].status == "none"  # no explicit voting line for the initial motion
+    assert motions[1].kind == "amended"
+    assert motions[1].moved_by.full_name == "James Freeman"
+    assert motions[1].seconded_by is None
+    assert motions[1].status == "unanimous"
 
 
 def test_variant4_per_person_roll_call():

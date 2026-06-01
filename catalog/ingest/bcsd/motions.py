@@ -57,7 +57,8 @@ def parse_outcome_block(lines: list[str]) -> tuple[str, list[ParsedMotion], list
             )
         )
         seq += 1
-        cur_kind = "amended" if cur_kind in ("initial", "amended") else "simple"
+        # After flushing an initial motion, the next motion in this block is its amendment.
+        cur_kind = "amended" if cur_kind == "initial" else "simple"
         cur_moved = None
         cur_seconded = None
         have_motion_signal = False
@@ -81,6 +82,8 @@ def parse_outcome_block(lines: list[str]) -> tuple[str, list[ParsedMotion], list
             if label == "initial":
                 cur_kind = "initial"
             elif label == "amended":
+                if cur_kind == "initial":  # flush the accumulated initial motion first
+                    flush("")
                 cur_kind = "amended"
             cur_moved = _person(moved_m["name"])
             have_motion_signal = True
@@ -91,7 +94,7 @@ def parse_outcome_block(lines: list[str]) -> tuple[str, list[ParsedMotion], list
             have_motion_signal = True
             continue
         voting_m = _VOTING.match(line)
-        if voting_m and (have_motion_signal or motions):
+        if voting_m and have_motion_signal:
             flush(voting_m["result"])
             continue
         prose.append(line)
