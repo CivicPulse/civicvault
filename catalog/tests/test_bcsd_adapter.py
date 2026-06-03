@@ -4,6 +4,7 @@ from pathlib import Path
 
 from catalog.ingest.bcsd.adapter import parse_meeting_folder
 from catalog.tests.fixtures import FIXTURES_DIR
+from catalog.tests.fixtures.pdfs import write_empty_pdf, write_text_pdf
 
 
 def _make_folder(tmp_path: Path, fixture: str, folder_name: str, *, with_minutes=True) -> Path:
@@ -59,3 +60,53 @@ def test_minutes_absent_falls_back_to_agenda(tmp_path):
     assert len(pm.agenda_items) > 0
     assert all(not it.motions and not it.votes for it in pm.agenda_items)
     assert pm.roster == ()
+
+
+def _committee_folder_with_files(tmp_path):
+    folder = (
+        tmp_path
+        / "BCSD_BOE_MEETINGS"
+        / "2025"
+        / "04"
+        / "2025-04-17_1600_committee-meeting_mid-124789"
+    )
+    (folder / "files").mkdir(parents=True)
+    for fname in ("event.md", "minutes.md", "agenda.md"):
+        shutil.copy(FIXTURES_DIR / "committee" / fname, folder / fname)
+    # One file that the ## Files map links to FSS-3 (text layer), one unmapped (no text).
+    write_text_pdf(folder / "files" / "hmh.pdf")  # mapped to FSS-3 in committee/event.md
+    write_empty_pdf(folder / "files" / "unmapped-extra.pdf")
+    return folder
+
+
+def test_adapter_emits_attachment_documents(tmp_path):
+    folder = _committee_folder_with_files(tmp_path)
+    parsed = parse_meeting_folder(folder)
+
+    attachments = [d for d in parsed.raw_documents if d.is_attachment]
+    by_name = {d.source_path.rsplit("/", 1)[-1]: d for d in attachments}
+    assert set(by_name) == {"hmh.pdf", "unmapped-extra.pdf"}
+
+    hmh = by_name["hmh.pdf"]
+    assert hmh.ocr_status == "has_text"
+    assert "chromebooks" in hmh.text
+    assert hmh.agenda_item_code == "FSS-3"
+    assert hmh.r2_key.endswith(
+        "BCSD_BOE_MEETINGS/2025/04/2025-04-17_1600_committee-meeting_mid-124789/files/hmh.pdf"
+    )
+    assert hmh.r2_key.startswith("BCSD/")
+
+    extra = by_name["unmapped-extra.pdf"]
+    assert extra.agenda_item_code is None  # not in the ## Files map → meeting-level
+    assert extra.ocr_status == "ocr_needed"
+
+
+def test_adapter_without_files_dir_emits_no_attachments(tmp_path):
+    folder = (
+        tmp_path / "BCSD_BOE_MEETINGS" / "2025" / "04" / "2025-04-17_1830_board-meeting_mid-124791"
+    )
+    folder.mkdir(parents=True)
+    for fname in ("event.md", "minutes.md", "agenda.md"):
+        shutil.copy(FIXTURES_DIR / "board" / fname, folder / fname)
+    parsed = parse_meeting_folder(folder)
+    assert [d for d in parsed.raw_documents if d.is_attachment] == []

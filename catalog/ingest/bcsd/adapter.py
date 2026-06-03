@@ -5,6 +5,12 @@ from pathlib import Path
 
 from catalog.ingest.bcsd.agenda_md import parse_agenda_md
 from catalog.ingest.bcsd.event_md import parse_event_md
+from catalog.ingest.bcsd.files import (
+    document_kind_for,
+    extract_pdf_text,
+    r2_key_for,
+    title_for,
+)
 from catalog.ingest.bcsd.foldername import parse_folder_name
 from catalog.ingest.bcsd.minutes_md import parse_minutes_md
 from catalog.ingest.ir import (
@@ -103,6 +109,31 @@ def parse_meeting_folder(folder: Path) -> ParsedMeeting:
                 file_names=_files_for_item(event.files, ev.code, ev.title),
             )
         )
+
+    # Attachments: invert the per-item file map (filename -> item code), then walk files/.
+    code_by_file: dict[str, str] = {}
+    for item in items:
+        for fname in item.file_names:
+            code_by_file.setdefault(fname, item.code)
+
+    files_dir = folder / "files"
+    if files_dir.is_dir():
+        for path in sorted(p for p in files_dir.iterdir() if p.is_file()):
+            text, ocr_status = ("", "unknown")
+            if path.suffix.lower() == ".pdf":
+                text, ocr_status = extract_pdf_text(path)
+            raw_documents.append(
+                ParsedDocument(
+                    kind=document_kind_for(path.name),
+                    title=title_for(path.name),
+                    source_path=str(path),
+                    text=text,
+                    r2_key=r2_key_for(path),
+                    ocr_status=ocr_status,
+                    agenda_item_code=code_by_file.get(path.name),
+                    is_attachment=True,
+                )
+            )
 
     return ParsedMeeting(
         date=fn.date,
