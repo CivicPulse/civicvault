@@ -2,7 +2,8 @@ from pathlib import Path
 
 import pytest
 
-from catalog.ingest.bcsd.files import document_kind_for, r2_key_for, title_for
+from catalog.ingest.bcsd.files import document_kind_for, extract_pdf_text, r2_key_for, title_for
+from catalog.tests.fixtures.pdfs import write_empty_pdf, write_text_pdf
 
 
 def test_r2_key_locates_bcsd_component():
@@ -35,3 +36,25 @@ def test_title_for_deslugs_filename():
     assert title_for("action-memo-math-adoption-signed.pdf") == "Action Memo Math Adoption Signed"
     assert title_for("hmh.pdf") == "Hmh"
     assert title_for("HMH_Math_2025.pdf") == "Hmh Math 2025"
+
+
+def test_extract_pdf_text_has_text(tmp_path):
+    pdf = write_text_pdf(tmp_path / "t.pdf")
+    text, status = extract_pdf_text(pdf)
+    assert "chromebooks" in text
+    assert status == "has_text"
+
+
+def test_extract_pdf_text_no_text_layer_is_ocr_needed(tmp_path):
+    pdf = write_empty_pdf(tmp_path / "e.pdf")
+    text, status = extract_pdf_text(pdf)
+    assert text == ""
+    assert status == "ocr_needed"
+
+
+def test_extract_pdf_text_unreadable_is_unknown(tmp_path):
+    bad = tmp_path / "bad.pdf"
+    bad.write_bytes(b"not really a pdf")
+    text, status = extract_pdf_text(bad)
+    assert text == ""
+    assert status == "unknown"
