@@ -2,12 +2,14 @@ import shutil
 from unittest import mock
 
 import pytest
+from django.contrib.postgres.search import SearchQuery
 from django.core.management import call_command
 
 from catalog.models import (
     AgendaItem,
     Appearance,
     Citation,
+    Document,
     Jurisdiction,
     Meeting,
     Motion,
@@ -103,3 +105,24 @@ def test_command_uploads_only_with_flag(tmp_path):
         call_command("ingest_bcsd", folder, "--upload")
     assert up.call_count == 2  # both staged committee PDFs (hmh.pdf + unmapped-extra.pdf)
     assert all(c.args[0].startswith("BCSD/") for c in up.call_args_list)
+
+
+@pytest.mark.django_db
+def test_command_ingests_attachment_documents(tmp_path):
+    root = _stage_pair(tmp_path)
+    call_command("ingest_bcsd", str(root / "2025-04-17_1600_committee-meeting_mid-124789"))
+
+    committee = Meeting.objects.get(source_meeting_id="124789")
+    attachments = Document.objects.filter(meeting=committee, r2_key__startswith="BCSD/")
+    # Exactly the two files staged on disk (the other mapped files are silently skipped).
+    assert attachments.count() == 2
+
+    hmh = attachments.get(r2_key__endswith="/files/hmh.pdf")
+    assert hmh.agenda_item is not None and hmh.agenda_item.code == "FSS-3"
+    assert hmh.ocr_status == Document.OCRStatus.HAS_TEXT
+    # search_vector populated by the trigger → full-text query matches.
+    assert attachments.filter(search_vector=SearchQuery("chromebooks")).filter(pk=hmh.pk).exists()
+
+    extra = attachments.get(r2_key__endswith="/files/unmapped-extra.pdf")
+    assert extra.agenda_item is None
+    assert extra.ocr_status == Document.OCRStatus.OCR_NEEDED
