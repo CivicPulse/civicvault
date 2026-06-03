@@ -1,6 +1,8 @@
 import dataclasses
 import datetime
 
+import pytest
+
 from catalog.ingest.ir import (
     ParsedAgendaItem,
     ParsedAppearance,
@@ -89,3 +91,35 @@ def test_parsed_document_attachment_fields_default():
     )
     assert att.is_attachment is True
     assert att.agenda_item_code == "FSS-3"
+
+
+def test_parsed_transcript_segment_is_frozen():
+    from catalog.ingest.ir import ParsedTranscriptSegment
+
+    seg = ParsedTranscriptSegment(start=1.5, end=3.0, text="hello")
+    assert seg.start == 1.5 and seg.end == 3.0 and seg.text == "hello"
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        seg.text = "x"
+
+
+def test_parsed_recording_defaults():
+    import datetime
+
+    from catalog.ingest.ir import ParsedRecording, ParsedTranscriptSegment
+
+    rec = ParsedRecording(
+        youtube_id="CWjfBn10EJc",
+        title="Committee and Board Meeting 1/19/2023",
+        recorded_on=datetime.date(2023, 1, 19),
+        upload_date=datetime.date(2023, 1, 20),
+        duration_seconds=13486,
+        source_url="https://www.youtube.com/watch?v=CWjfBn10EJc",
+        r2_key="",
+        is_combined=True,
+    )
+    assert rec.segments == ()
+    assert rec.transcript_origin == "youtube_captions"
+    assert rec.source_path == ""
+    # segments accept ParsedTranscriptSegment tuples
+    rec2 = dataclasses.replace(rec, segments=(ParsedTranscriptSegment(0.0, 1.0, "x"),))
+    assert rec2.segments[0].text == "x"
