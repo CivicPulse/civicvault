@@ -11,7 +11,7 @@ from catalog.ingest.bcsd.files import r2_key_for
 from catalog.ingest.bcsd.vtt import parse_vtt
 from catalog.ingest.ir import ParsedRecording
 
-_NUMERIC_DATE = re.compile(r"\b(\d{1,2})[/_.](\d{1,2})[/_.](\d{4})\b")
+_NUMERIC_DATE = re.compile(r"\b(\d{1,2})[/_.](\d{1,2})[/_.]((?:19|20)\d{2})\b")
 _MONTHS = {
     "january": 1,
     "february": 2,
@@ -53,7 +53,10 @@ def parse_title_date(title: str) -> datetime.date | None:
 def _upload_date(raw: str | None) -> datetime.date | None:
     if not raw or len(raw) != 8:
         return None
-    return datetime.date(int(raw[0:4]), int(raw[4:6]), int(raw[6:8]))
+    try:
+        return datetime.date(int(raw[0:4]), int(raw[4:6]), int(raw[6:8]))
+    except ValueError:
+        return None
 
 
 def _r2_key_or_blank(path: Path) -> str:
@@ -65,10 +68,9 @@ def _r2_key_or_blank(path: Path) -> str:
         return ""
 
 
-def _find_vtt(info_path: Path, youtube_id: str) -> Path | None:
+def _find_vtt(siblings, youtube_id: str) -> Path | None:
     """Prefer .en.vtt, fall back to .en-orig.vtt; tolerate _./__ separators by
     matching any sibling that contains the youtube id and ends with the suffix."""
-    siblings = list(info_path.parent.iterdir())
     for suffix in (".en.vtt", ".en-orig.vtt"):
         for f in siblings:
             if youtube_id in f.name and f.name.endswith(suffix):
@@ -76,19 +78,21 @@ def _find_vtt(info_path: Path, youtube_id: str) -> Path | None:
     return None
 
 
-def _find_mp4(info_path: Path, youtube_id: str) -> Path | None:
-    for f in info_path.parent.iterdir():
+def _find_mp4(siblings, youtube_id: str) -> Path | None:
+    for f in siblings:
         if youtube_id in f.name and f.name.endswith(".mp4"):
             return f
     return None
 
 
-def parse_recording(info_path: Path) -> ParsedRecording:
-    info = json.loads(Path(info_path).read_text())
+def parse_recording(info_path: Path | str) -> ParsedRecording:
+    info_path = Path(info_path)
+    info = json.loads(info_path.read_text())
     youtube_id = info["id"]
     title = info.get("title") or info.get("fulltitle") or ""
 
-    vtt = _find_vtt(Path(info_path), youtube_id)
+    siblings = list(info_path.parent.iterdir())
+    vtt = _find_vtt(siblings, youtube_id)
     if vtt is not None:
         segments = parse_vtt(vtt.read_text())
         origin = "youtube_captions"
@@ -96,7 +100,7 @@ def parse_recording(info_path: Path) -> ParsedRecording:
         segments = ()
         origin = ""
 
-    mp4 = _find_mp4(Path(info_path), youtube_id)
+    mp4 = _find_mp4(siblings, youtube_id)
     r2_key = _r2_key_or_blank(mp4) if mp4 is not None else ""
 
     return ParsedRecording(

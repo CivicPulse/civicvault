@@ -18,6 +18,7 @@ INFO = FIX / "test_committee_and_board_1_19_2023_TESTvideo01_.info.json"
         ("Town Hall June 17 2021", datetime.date(2021, 6, 17)),
         ("Town Hall August_19_2021", datetime.date(2021, 8, 19)),
         ("No date here", None),
+        ("Bad date 13/40/2023", None),
     ],
 )
 def test_parse_title_date(title, expected):
@@ -54,3 +55,14 @@ def test_parse_recording_without_vtt_flags_empty_transcript(tmp_path):
     rec = parse_recording(info)
     assert rec.segments == ()
     assert rec.transcript_origin == ""
+
+
+def test_parse_recording_handles_malformed_upload_date(tmp_path):
+    info = tmp_path / "bad_TESTvideoXX_.info.json"
+    info.write_text(
+        '{"id": "TESTvideoXX", "title": "Board Meeting 2/2/2023", '
+        '"duration": 60, "upload_date": "2023XX01", "webpage_url": "https://youtu.be/TESTvideoXX"}'
+    )
+    rec = parse_recording(info)
+    assert rec.upload_date is None
+    assert rec.recorded_on == datetime.date(2023, 2, 2)
