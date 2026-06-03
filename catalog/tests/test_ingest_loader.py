@@ -1,3 +1,4 @@
+import dataclasses
 import datetime
 
 import pytest
@@ -250,3 +251,71 @@ def test_duplicate_vote_raises_valueerror_not_integrityerror(context):
 
     # The transaction must have been fully rolled back — no meeting persisted.
     assert Meeting.objects.filter(source_meeting_id="999002").count() == 0
+
+
+@pytest.mark.django_db
+def test_loader_persists_attachment_documents(context):
+    jur, source, body = context
+    base = _sample_meeting()  # has agenda item FSS-3 + a minutes source doc
+    parsed = dataclasses.replace(
+        base,
+        raw_documents=base.raw_documents
+        + (
+            ParsedDocument(
+                kind="memo",
+                title="HMH",
+                source_path="/x/files/hmh.pdf",
+                text="chromebooks",
+                r2_key="BCSD/x/files/hmh.pdf",
+                ocr_status="has_text",
+                agenda_item_code="FSS-3",
+                is_attachment=True,
+            ),
+            ParsedDocument(
+                kind="other",
+                title="Extra",
+                source_path="/x/files/extra.pdf",
+                text="",
+                r2_key="BCSD/x/files/extra.pdf",
+                ocr_status="ocr_needed",
+                agenda_item_code=None,
+                is_attachment=True,
+            ),
+        ),
+    )
+    meeting = load_meeting(parsed, source=source, jurisdiction=jur, body=body)
+
+    docs = Document.objects.filter(meeting=meeting, r2_key__startswith="BCSD/")
+    assert docs.count() == 2
+    hmh = docs.get(r2_key="BCSD/x/files/hmh.pdf")
+    assert hmh.kind == Document.Kind.MEMO
+    assert hmh.ocr_status == Document.OCRStatus.HAS_TEXT
+    assert hmh.agenda_item.code == "FSS-3"
+    extra = docs.get(r2_key="BCSD/x/files/extra.pdf")
+    assert extra.agenda_item is None  # meeting-level
+    assert extra.ocr_status == Document.OCRStatus.OCR_NEEDED
+
+
+@pytest.mark.django_db
+def test_loader_attachment_documents_are_idempotent(context):
+    jur, source, body = context
+    base = _sample_meeting()
+    parsed = dataclasses.replace(
+        base,
+        raw_documents=base.raw_documents
+        + (
+            ParsedDocument(
+                kind="memo",
+                title="HMH",
+                source_path="/x/files/hmh.pdf",
+                text="chromebooks",
+                r2_key="BCSD/x/files/hmh.pdf",
+                ocr_status="has_text",
+                agenda_item_code="FSS-3",
+                is_attachment=True,
+            ),
+        ),
+    )
+    load_meeting(parsed, source=source, jurisdiction=jur, body=body)
+    meeting = load_meeting(parsed, source=source, jurisdiction=jur, body=body)  # re-ingest
+    assert Document.objects.filter(meeting=meeting, r2_key="BCSD/x/files/hmh.pdf").count() == 1

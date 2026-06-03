@@ -58,10 +58,15 @@ class ParsedAgendaItem:
 
 @dataclass(frozen=True)
 class ParsedDocument:
-    kind: str  # "minutes" | "agenda" | "other"
+    kind: str  # "minutes" | "agenda" | "other" | attachment heuristics (policy/memo/presentation)
     title: str
     source_path: str
     text: str
+    # Attachment fields (defaults keep the existing .md source-doc call sites working).
+    r2_key: str = ""
+    ocr_status: str = "unknown"  # "has_text" | "ocr_needed" | "empty" | "unknown"
+    agenda_item_code: str | None = None  # None → meeting-level (no AgendaItem link)
+    is_attachment: bool = False
 
 
 @dataclass(frozen=True)

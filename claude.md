@@ -32,3 +32,4 @@ After merging a feature branch into `main` (or committing directly to `main`) lo
 
 Never force-push to the remote.
 
+use agent teams where appropriate to minimize context window usage and maximize parallelism (for speed).

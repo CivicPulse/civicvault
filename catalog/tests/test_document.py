@@ -1,6 +1,7 @@
 import datetime
 
 import pytest
+from django.contrib.postgres.search import SearchQuery, SearchRank
 
 from catalog.models import (
     AgendaItem,
@@ -39,3 +40,38 @@ def test_standalone_document_has_no_meeting():
         title="ACFR FY2024", kind=Document.Kind.REPORT, text="balance sheet"
     )
     assert doc.meeting is None
+
+
+@pytest.mark.django_db
+def test_search_vector_trigger_populates_on_insert():
+    doc = Document.objects.create(title="Lightspeed Renewal", text="chromebooks for students")
+    # Title (weight A) is searchable.
+    qs = Document.objects.filter(pk=doc.pk)
+    assert qs.filter(search_vector=SearchQuery("lightspeed")).exists()
+    # Body text (weight B) is searchable.
+    assert qs.filter(search_vector=SearchQuery("chromebooks")).exists()
+
+
+@pytest.mark.django_db
+def test_search_vector_trigger_updates_on_text_change():
+    doc = Document.objects.create(title="Doc", text="microsoft")
+    doc.text = "lenovo lease"
+    doc.save()
+    qs = Document.objects.filter(pk=doc.pk)
+    assert qs.filter(search_vector=SearchQuery("lenovo")).exists()
+    assert not qs.filter(search_vector=SearchQuery("microsoft")).exists()
+
+
+@pytest.mark.django_db
+def test_search_vector_weights_title_above_body():
+    in_title = Document.objects.create(title="Chromebooks", text="something else entirely")
+    in_body = Document.objects.create(title="Unrelated heading", text="chromebooks appear here")
+    q = SearchQuery("chromebooks")
+    ranked = list(
+        Document.objects.filter(search_vector=q)
+        .annotate(rank=SearchRank("search_vector", q))
+        .order_by("-rank")
+        .values_list("pk", flat=True)
+    )
+    # Title match (weight A) must rank ahead of body-only match (weight B).
+    assert ranked.index(in_title.pk) < ranked.index(in_body.pk)

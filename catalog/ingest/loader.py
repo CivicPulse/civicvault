@@ -88,6 +88,16 @@ def _get_person(parsed_person: ParsedPerson, cache: dict[str, Person]) -> Person
     return person
 
 
+def _doc_kind(raw: str) -> Document.Kind:
+    return Document.Kind(raw) if raw in Document.Kind.values else Document.Kind.OTHER
+
+
+def _ocr_status(raw: str) -> Document.OCRStatus:
+    return (
+        Document.OCRStatus(raw) if raw in Document.OCRStatus.values else Document.OCRStatus.UNKNOWN
+    )
+
+
 @transaction.atomic
 def load_meeting(parsed: ParsedMeeting, *, source, jurisdiction, body) -> Meeting:
     meeting, _ = Meeting.objects.update_or_create(
@@ -115,16 +125,15 @@ def load_meeting(parsed: ParsedMeeting, *, source, jurisdiction, body) -> Meetin
     # Source documents (so Citations have an evidence target).
     minutes_doc = None
     for pdoc in parsed.raw_documents:
-        kind = {"minutes": Document.Kind.MINUTES, "agenda": Document.Kind.AGENDA}.get(
-            pdoc.kind, Document.Kind.OTHER
-        )
+        if pdoc.is_attachment:
+            continue  # attachment docs are created after agenda items exist (see below)
         doc = Document.objects.create(
             title=pdoc.title,
-            kind=kind,
+            kind=_doc_kind(pdoc.kind),
             meeting=meeting,
             source=source,
             source_url=parsed.source_url,
-            text=pdoc.text,  # FTS search_vector population is deferred to slice 1c.
+            text=pdoc.text,
             ocr_status=Document.OCRStatus.HAS_TEXT,
         )
         if pdoc.kind == "minutes":
@@ -173,6 +182,7 @@ def load_meeting(parsed: ParsedMeeting, *, source, jurisdiction, body) -> Meetin
             Citation.objects.create(fact=appearance, document=minutes_doc)
 
     # Agenda items + motions + roll-call votes.
+    item_by_code: dict[str, AgendaItem] = {}
     for pitem in parsed.agenda_items:
         item = AgendaItem.objects.create(
             meeting=meeting,
@@ -184,6 +194,7 @@ def load_meeting(parsed: ParsedMeeting, *, source, jurisdiction, body) -> Meetin
             outcome_text=pitem.outcome_text,
             outcome_status=_OUTCOME.get(pitem.outcome_status, AgendaItem.OutcomeStatus.NONE),
         )
+        item_by_code[pitem.code] = item
         for pm in pitem.motions:
             motion = Motion.objects.create(
                 agenda_item=item,
@@ -218,5 +229,23 @@ def load_meeting(parsed: ParsedMeeting, *, source, jurisdiction, body) -> Meetin
                 ) from exc
             if minutes_doc:
                 Citation.objects.create(fact=vote, document=minutes_doc)
+
+    # Attachment Documents (created after agenda items so the FK can resolve).
+    # The FTS search_vector is populated by a DB trigger (migration in a later task).
+    for pdoc in parsed.raw_documents:
+        if not pdoc.is_attachment:
+            continue
+        Document.objects.create(
+            title=pdoc.title,
+            kind=_doc_kind(pdoc.kind),
+            meeting=meeting,
+            # `or None` so an empty code never mis-links to a code-less item's "" key.
+            agenda_item=item_by_code.get(pdoc.agenda_item_code or None),
+            source=source,
+            # source_url intentionally omitted; r2_key is the canonical reference.
+            r2_key=pdoc.r2_key,
+            text=pdoc.text,
+            ocr_status=_ocr_status(pdoc.ocr_status),
+        )
 
     return meeting
