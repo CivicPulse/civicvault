@@ -270,6 +270,8 @@ def load_recording(
     + MeetingCoverage. No Citations (recordings assert no facts). Idempotent on
     youtube_id: re-ingest wipes the asset's transcripts (cascades segments) and its
     coverage rows, then recreates them."""
+    if not parsed.youtube_id:
+        raise ValueError("load_recording requires a non-empty youtube_id.")
     media, _ = MediaAsset.objects.update_or_create(
         youtube_id=parsed.youtube_id,
         defaults={

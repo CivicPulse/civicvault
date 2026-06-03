@@ -333,15 +333,13 @@ _DEFAULT_SEGMENTS = (ParsedTranscriptSegment(0.0, 2.0, "call to order"),)
 
 
 def _recording(youtube_id="vid1", segments=_DEFAULT_SEGMENTS):
-    import datetime
-
     return ParsedRecording(
         youtube_id=youtube_id,
         title="Committee and Board Meeting 1/19/2023",
         recorded_on=datetime.date(2023, 1, 19),
         upload_date=datetime.date(2023, 1, 20),
         duration_seconds=120,
-        source_url="https://youtu.be/vid1",
+        source_url=f"https://youtu.be/{youtube_id}",
         r2_key="",
         is_combined=True,
         segments=segments,
@@ -376,8 +374,6 @@ def test_load_recording_populates_segment_fts(context):
 @pytest.mark.django_db
 def test_load_recording_creates_coverage_rows(context):
     jur, source, body = context
-    import datetime
-
     committee = Meeting.objects.create(
         body=body,
         jurisdiction=jur,
@@ -435,3 +431,11 @@ def test_load_recording_unresolvable_meeting_raises(context):
     decisions = [CoverageDecision(meeting_id=999999, start_offset=0.0, end_offset=None)]
     with pytest.raises(ValueError, match="no Meeting"):
         load_recording(_recording(), decisions, source=source)
+
+
+@pytest.mark.django_db
+def test_load_recording_requires_youtube_id(context):
+    _, source, _ = context
+    rec = dataclasses.replace(_recording(), youtube_id="")
+    with pytest.raises(ValueError, match="non-empty youtube_id"):
+        load_recording(rec, [], source=source)
