@@ -52,16 +52,17 @@ def extract_pdf_text(local_path: Path) -> tuple[str, str]:
 
     - 0 pages → ("", "empty")
     - pages but no/sparse text layer (< MIN_CHARS_PER_PAGE avg) → ocr_needed
+      (the returned text may be empty or sparse in this case)
     - unreadable PDF → ("", "unknown") and a logged warning (one bad attachment
       must not abort an otherwise-good meeting ingest)
     """
     try:
-        reader = PdfReader(str(local_path))
+        reader = PdfReader(local_path)
         pages = reader.pages
         if len(pages) == 0:
             return "", "empty"
-        text = "".join((page.extract_text() or "") for page in pages)
-        total = len(text.strip())
+        text = "".join((page.extract_text() or "") for page in pages).strip()
+        total = len(text)
         if total == 0 or total / len(pages) < MIN_CHARS_PER_PAGE:
             return text, "ocr_needed"
         return text, "has_text"
