@@ -63,3 +63,25 @@ def test_seconds_conversion_handles_hours():
     vtt = "WEBVTT\n\n01:02:03.500 --> 01:02:05.000 align:start position:0%\nhello world\n"
     segs = parse_vtt(vtt)
     assert segs[0].start == 3723.5  # 1h2m3.5s
+
+
+# A within-cue line that is only whitespace (a single space) is YouTube's
+# carryover/typing placeholder, NOT a cue boundary. Only a truly-empty line
+# separates cues in WebVTT. If _cues() split on whitespace-only lines, the
+# real content line after the placeholder would be orphaned and lost. This
+# fixture puts a space-placeholder line ahead of each real content line.
+WHITESPACE_PLACEHOLDER = """WEBVTT
+
+00:00:00.000 --> 00:00:02.000 align:start position:0%
+ 
+good afternoon
+
+00:00:02.000 --> 00:00:04.000 align:start position:0%
+ 
+the board will come
+"""
+
+
+def test_within_cue_whitespace_line_does_not_split_cue():
+    segs = parse_vtt(WHITESPACE_PLACEHOLDER)
+    assert [s.text for s in segs] == ["good afternoon", "the board will come"]
