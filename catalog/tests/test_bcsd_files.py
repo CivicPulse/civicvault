@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from catalog.ingest.bcsd.files import document_kind_for, r2_key_for, title_for
 
 
@@ -14,8 +16,6 @@ def test_r2_key_works_for_tmp_test_layout():
 
 
 def test_r2_key_without_bcsd_component_raises():
-    import pytest
-
     with pytest.raises(ValueError):
         r2_key_for(Path("/tmp/no/collection/here/file.pdf"))
 
@@ -27,8 +27,11 @@ def test_document_kind_heuristics():
     assert document_kind_for("school-consolidation-final.pptx") == "presentation"
     assert document_kind_for("fss-1m-1.PPT") == "presentation"
     assert document_kind_for("some-random-quote-52159.pdf") == "other"
+    assert document_kind_for("feb-12-minutes.pdf") == "minutes"
+    assert document_kind_for("hcca-school-council-meeting-agenda-december-13-2021.pdf") == "agenda"
 
 
 def test_title_for_deslugs_filename():
     assert title_for("action-memo-math-adoption-signed.pdf") == "Action Memo Math Adoption Signed"
     assert title_for("hmh.pdf") == "Hmh"
+    assert title_for("HMH_Math_2025.pdf") == "Hmh Math 2025"

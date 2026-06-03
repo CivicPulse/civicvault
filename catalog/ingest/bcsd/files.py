@@ -13,7 +13,7 @@ logging.getLogger("pypdf").setLevel(logging.ERROR)
 MIN_CHARS_PER_PAGE = 50
 
 
-def r2_key_for(local_path: Path) -> str:
+def r2_key_for(local_path: Path | str) -> str:
     """Bucket key = 'BCSD/' + the path from the top-level BCSD_* collection dir
     onward. Self-locating so it matches the live bucket regardless of mount point."""
     parts = Path(local_path).parts
@@ -28,6 +28,10 @@ def document_kind_for(filename: str) -> str:
     name = filename.lower()
     if name.endswith((".ppt", ".pptx")) or "presentation" in name:
         return "presentation"
+    if "minutes" in name:
+        return "minutes"
+    if "agenda" in name:
+        return "agenda"
     if "policy" in name or "regulation" in name:
         return "policy"
     if "memo" in name:
