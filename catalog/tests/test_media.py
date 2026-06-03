@@ -1,6 +1,8 @@
 import datetime
 
 import pytest
+from django.contrib.postgres.search import SearchQuery
+from django.db import IntegrityError
 
 from catalog.models import (
     Jurisdiction,
@@ -53,3 +55,41 @@ def test_coverage_unique_per_media_meeting():
     MeetingCoverage.objects.create(media=media, meeting=meeting)
     with pytest.raises(IntegrityError):
         MeetingCoverage.objects.create(media=media, meeting=meeting)
+
+
+@pytest.mark.django_db
+def test_youtube_id_is_unique_when_present():
+    MediaAsset.objects.create(kind=MediaAsset.Kind.VIDEO, youtube_id="dupid")
+    with pytest.raises(IntegrityError):
+        MediaAsset.objects.create(kind=MediaAsset.Kind.VIDEO, youtube_id="dupid")
+
+
+@pytest.mark.django_db
+def test_blank_youtube_id_is_allowed_multiple_times():
+    MediaAsset.objects.create(kind=MediaAsset.Kind.AUDIO, youtube_id="")
+    MediaAsset.objects.create(kind=MediaAsset.Kind.AUDIO, youtube_id="")  # no error
+
+
+@pytest.mark.django_db
+def test_segment_search_vector_trigger_populates_on_insert():
+    media = MediaAsset.objects.create(kind=MediaAsset.Kind.VIDEO, youtube_id="seg1")
+    transcript = Transcript.objects.create(media=media, origin=Transcript.Origin.YOUTUBE_CAPTIONS)
+    seg = TranscriptSegment.objects.create(
+        transcript=transcript, start=0.0, end=2.0, text="chromebooks for students"
+    )
+    qs = TranscriptSegment.objects.filter(pk=seg.pk)
+    assert qs.filter(search_vector=SearchQuery("chromebooks")).exists()
+
+
+@pytest.mark.django_db
+def test_segment_search_vector_trigger_updates_on_text_change():
+    media = MediaAsset.objects.create(kind=MediaAsset.Kind.VIDEO, youtube_id="seg2")
+    transcript = Transcript.objects.create(media=media, origin=Transcript.Origin.YOUTUBE_CAPTIONS)
+    seg = TranscriptSegment.objects.create(
+        transcript=transcript, start=0.0, end=2.0, text="microsoft"
+    )
+    seg.text = "lenovo lease"
+    seg.save()
+    qs = TranscriptSegment.objects.filter(pk=seg.pk)
+    assert qs.filter(search_vector=SearchQuery("lenovo")).exists()
+    assert not qs.filter(search_vector=SearchQuery("microsoft")).exists()
