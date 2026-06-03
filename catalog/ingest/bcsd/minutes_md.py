@@ -151,6 +151,13 @@ def parse_minutes_md(text: str) -> ParsedMinutes:
             if s.startswith("### "):
                 break
             block_lines.append(body[j])
+        # NOTE — consent-anchor attachment: when the source records the en-bloc
+        # consent-agenda roll call inside the *first* sub-item block (e.g. "#### i.
+        # Confirmation of Minutes"), those votes are attached only to that one
+        # AgendaItem, NOT to each individually approved item in the consent block.
+        # As a result, a query like "how did X vote on FSS-3" will find no Vote row
+        # even though FSS-3 was approved in that en-bloc roll call. This faithfully
+        # reflects the source layout and is a known limitation (see HANDOFF.md).
 
         rest = html.unescape(_ITEM_HEADER.match(header)["rest"])
         code_m = _CODE.search(rest)

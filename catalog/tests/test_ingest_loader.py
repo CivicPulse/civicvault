@@ -173,3 +173,80 @@ def test_reload_is_idempotent(context):
     # Citations are wiped+recreated on reload, so the count stays stable at 8
     # (3 roster + 1 invocation + 2 motions + 2 votes).
     assert Citation.objects.count() == 8
+
+
+@pytest.mark.django_db
+def test_duplicate_roster_entry_raises_valueerror_not_integrityerror(context):
+    """Two roster entries that slugify to the same slug must raise a descriptive
+    ValueError (not a raw IntegrityError) and must NOT partially persist the meeting."""
+    jur, source, body = context
+    # "John Smith" and "John  Smith" (extra space) both slugify to "john-smith".
+    # The second roster entry will attempt to create a duplicate Appearance for the
+    # already-seen Person, triggering the UniqueConstraint(person, meeting, role).
+    john_a = _person("John Smith")
+    john_b = ParsedPerson(full_name="John Smith", raw_name="John  Smith")  # same slug
+    duplicate_roster_meeting = ParsedMeeting(
+        date=datetime.date(2025, 1, 1),
+        start_time=datetime.time(10, 0),
+        kind_slug="committee-meeting",
+        source_meeting_id="999001",
+        source_url="https://example.com/999001",
+        source_path="/x/dupe-roster",
+        folder_name="2025-01-01_1000_committee-meeting_mid-999001",
+        title="Duplicate Roster Test",
+        roster=(john_a, john_b),
+        agenda_items=(),
+        appearances=(),
+        has_minutes=False,
+        raw_documents=(),
+    )
+
+    with pytest.raises(ValueError, match="Duplicate member appearance"):
+        load_meeting(duplicate_roster_meeting, source=source, jurisdiction=jur, body=body)
+
+    # The transaction must have been fully rolled back — no meeting persisted.
+    assert Meeting.objects.filter(source_meeting_id="999001").count() == 0
+
+
+@pytest.mark.django_db
+def test_duplicate_vote_raises_valueerror_not_integrityerror(context):
+    """Two votes by the same person on the same agenda item must raise a descriptive
+    ValueError (not a raw IntegrityError) and must NOT partially persist the meeting."""
+    jur, source, body = context
+    voter = _person("Jane Doe")
+    item_with_duplicate_votes = ParsedAgendaItem(
+        order=1,
+        code="DUP-1",
+        title="Duplicate vote item",
+        item_type="action",
+        reading_stage="",
+        section="I. TEST",
+        outcome_text="approved",
+        outcome_status="passed",
+        motions=(),
+        votes=(
+            ParsedVote(person=voter, value="yea"),
+            ParsedVote(person=voter, value="yea"),  # same person, same item
+        ),
+    )
+    duplicate_vote_meeting = ParsedMeeting(
+        date=datetime.date(2025, 1, 2),
+        start_time=datetime.time(10, 0),
+        kind_slug="committee-meeting",
+        source_meeting_id="999002",
+        source_url="https://example.com/999002",
+        source_path="/x/dupe-vote",
+        folder_name="2025-01-02_1000_committee-meeting_mid-999002",
+        title="Duplicate Vote Test",
+        roster=(),
+        agenda_items=(item_with_duplicate_votes,),
+        appearances=(),
+        has_minutes=False,
+        raw_documents=(),
+    )
+
+    with pytest.raises(ValueError, match="Duplicate vote"):
+        load_meeting(duplicate_vote_meeting, source=source, jurisdiction=jur, body=body)
+
+    # The transaction must have been fully rolled back — no meeting persisted.
+    assert Meeting.objects.filter(source_meeting_id="999002").count() == 0

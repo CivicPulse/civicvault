@@ -10,7 +10,7 @@ Source, Organization, Person) are get_or_create and never wiped. NOTE: once admi
 review begins, this wipe strategy must be revisited (out of scope for slice 1b).
 """
 
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.utils.text import slugify
 
 from catalog.ingest.ir import ParsedMeeting, ParsedPerson
@@ -135,9 +135,17 @@ def load_meeting(parsed: ParsedMeeting, *, source, jurisdiction, body) -> Meetin
     # Roster -> member appearances (+ citation when we have a minutes doc).
     for rp in parsed.roster:
         person = _get_person(rp, person_cache)
-        appearance = Appearance.objects.create(
-            person=person, meeting=meeting, role=Appearance.Role.MEMBER, reviewed=False
-        )
+        try:
+            appearance = Appearance.objects.create(
+                person=person, meeting=meeting, role=Appearance.Role.MEMBER, reviewed=False
+            )
+        except IntegrityError as exc:
+            raise ValueError(
+                f"Duplicate member appearance for person {person.full_name!r} "
+                f"(slug {person.slug!r}) in meeting {meeting.source_meeting_id!r} — "
+                f"likely a same-name Person merge or a duplicate roster entry. "
+                f"Fix the parser/data before ingest."
+            ) from exc
         if minutes_doc:
             Citation.objects.create(fact=appearance, document=minutes_doc)
 
@@ -146,12 +154,21 @@ def load_meeting(parsed: ParsedMeeting, *, source, jurisdiction, body) -> Meetin
         if pa.role not in _APPEARANCE_ROLE:
             raise ValueError(f"Unknown appearance role: {pa.role!r}")
         person = _get_person(pa.person, person_cache)
-        appearance = Appearance.objects.create(
-            person=person,
-            meeting=meeting,
-            role=_APPEARANCE_ROLE[pa.role],
-            reviewed=False,
-        )
+        role = _APPEARANCE_ROLE[pa.role]
+        try:
+            appearance = Appearance.objects.create(
+                person=person,
+                meeting=meeting,
+                role=role,
+                reviewed=False,
+            )
+        except IntegrityError as exc:
+            raise ValueError(
+                f"Duplicate {pa.role!r} appearance for person {person.full_name!r} "
+                f"(slug {person.slug!r}) in meeting {meeting.source_meeting_id!r} — "
+                f"likely a same-name Person merge or a duplicate roster entry. "
+                f"Fix the parser/data before ingest."
+            ) from exc
         if minutes_doc:
             Citation.objects.create(fact=appearance, document=minutes_doc)
 
@@ -184,12 +201,21 @@ def load_meeting(parsed: ParsedMeeting, *, source, jurisdiction, body) -> Meetin
             if pv.value not in _VOTE_VALUE:
                 raise ValueError(f"Unknown vote value: {pv.value!r}")
             person = _get_person(pv.person, person_cache)
-            vote = Vote.objects.create(
-                person=person,
-                agenda_item=item,
-                value=_VOTE_VALUE[pv.value],
-                reviewed=False,
-            )
+            try:
+                vote = Vote.objects.create(
+                    person=person,
+                    agenda_item=item,
+                    value=_VOTE_VALUE[pv.value],
+                    reviewed=False,
+                )
+            except IntegrityError as exc:
+                raise ValueError(
+                    f"Duplicate vote for person {person.full_name!r} "
+                    f"(slug {person.slug!r}) on agenda item {item.code!r} "
+                    f"in meeting {meeting.source_meeting_id!r} — "
+                    f"likely a same-name Person merge or a double roll-call. "
+                    f"Fix the parser/data before ingest."
+                ) from exc
             if minutes_doc:
                 Citation.objects.create(fact=vote, document=minutes_doc)
 

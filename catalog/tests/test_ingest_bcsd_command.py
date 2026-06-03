@@ -48,8 +48,10 @@ def test_command_ingests_both_meetings(tmp_path):
     assert Motion.objects.filter(agenda_item=fss8).count() == 2
 
     board = Meeting.objects.get(source_meeting_id="124791")
-    # The board consent anchor materialized 8 roll-call votes; the adjourn + PS-6 add more.
-    assert Vote.objects.filter(agenda_item__meeting=board).count() >= 8
+    # Consent en-bloc roll call (8) + PS-6 roll call (8) = 16 captured votes.
+    # The procedural "### ADJOURN" roll call is intentionally NOT materialized
+    # (only coded "####" items become AgendaItems), so it is excluded here.
+    assert Vote.objects.filter(agenda_item__meeting=board).count() == 16
     # Visitors captured as speaker appearances.
     assert Appearance.objects.filter(meeting=board, role=Appearance.Role.SPEAKER).count() >= 2
 
