@@ -2,6 +2,7 @@ import dataclasses
 import datetime
 
 import pytest
+from django.contrib.postgres.search import SearchQuery
 
 from catalog.ingest.ir import (
     ParsedAgendaItem,
@@ -10,20 +11,27 @@ from catalog.ingest.ir import (
     ParsedMeeting,
     ParsedMotion,
     ParsedPerson,
+    ParsedRecording,
+    ParsedTranscriptSegment,
     ParsedVote,
 )
-from catalog.ingest.loader import load_meeting
+from catalog.ingest.loader import load_meeting, load_recording
+from catalog.ingest.match import CoverageDecision
 from catalog.models import (
     AgendaItem,
     Appearance,
     Citation,
     Document,
     Jurisdiction,
+    MediaAsset,
     Meeting,
+    MeetingCoverage,
     Motion,
     Organization,
     Person,
     Source,
+    Transcript,
+    TranscriptSegment,
     Vote,
 )
 
@@ -319,3 +327,111 @@ def test_loader_attachment_documents_are_idempotent(context):
     load_meeting(parsed, source=source, jurisdiction=jur, body=body)
     meeting = load_meeting(parsed, source=source, jurisdiction=jur, body=body)  # re-ingest
     assert Document.objects.filter(meeting=meeting, r2_key="BCSD/x/files/hmh.pdf").count() == 1
+
+
+_DEFAULT_SEGMENTS = (ParsedTranscriptSegment(0.0, 2.0, "call to order"),)
+
+
+def _recording(youtube_id="vid1", segments=_DEFAULT_SEGMENTS):
+    import datetime
+
+    return ParsedRecording(
+        youtube_id=youtube_id,
+        title="Committee and Board Meeting 1/19/2023",
+        recorded_on=datetime.date(2023, 1, 19),
+        upload_date=datetime.date(2023, 1, 20),
+        duration_seconds=120,
+        source_url="https://youtu.be/vid1",
+        r2_key="",
+        is_combined=True,
+        segments=segments,
+        transcript_origin="youtube_captions",
+    )
+
+
+@pytest.mark.django_db
+def test_load_recording_creates_asset_transcript_segments(context):
+    _, source, _ = context
+    media = load_recording(_recording(), [], source=source)
+    assert media.youtube_id == "vid1"
+    assert media.kind == MediaAsset.Kind.VIDEO
+    assert media.recorded_on.isoformat() == "2023-01-19"
+    assert media.transcripts.count() == 1
+    assert media.transcripts.first().origin == Transcript.Origin.YOUTUBE_CAPTIONS
+    assert TranscriptSegment.objects.filter(transcript__media=media).count() == 1
+
+
+@pytest.mark.django_db
+def test_load_recording_populates_segment_fts(context):
+    _, source, _ = context
+    media = load_recording(
+        _recording(segments=(ParsedTranscriptSegment(0.0, 2.0, "chromebooks approved"),)),
+        [],
+        source=source,
+    )
+    seg_qs = TranscriptSegment.objects.filter(transcript__media=media)
+    assert seg_qs.filter(search_vector=SearchQuery("chromebooks")).exists()
+
+
+@pytest.mark.django_db
+def test_load_recording_creates_coverage_rows(context):
+    jur, source, body = context
+    import datetime
+
+    committee = Meeting.objects.create(
+        body=body,
+        jurisdiction=jur,
+        source=source,
+        source_meeting_id="107503",
+        date=datetime.date(2023, 1, 19),
+        start_time=datetime.time(16, 0),
+        kind=Meeting.Kind.COMMITTEE,
+        slug="c-107503",
+    )
+    board = Meeting.objects.create(
+        body=body,
+        jurisdiction=jur,
+        source=source,
+        source_meeting_id="107593",
+        date=datetime.date(2023, 1, 19),
+        start_time=datetime.time(18, 30),
+        kind=Meeting.Kind.BOARD,
+        slug="b-107593",
+    )
+    decisions = [
+        CoverageDecision(meeting_id=committee.pk, start_offset=0.0, end_offset=90.0),
+        CoverageDecision(meeting_id=board.pk, start_offset=90.0, end_offset=None),
+    ]
+    media = load_recording(_recording(), decisions, source=source)
+    covs = MeetingCoverage.objects.filter(media=media).order_by("start_offset")
+    assert covs.count() == 2
+    assert covs[0].meeting == committee
+    assert covs[0].start_offset == 0.0 and covs[0].end_offset == 90.0
+    assert covs[1].meeting == board and covs[1].end_offset is None
+    assert all(c.split_confirmed is False for c in covs)
+
+
+@pytest.mark.django_db
+def test_load_recording_is_idempotent(context):
+    _, source, _ = context
+    load_recording(_recording(), [], source=source)
+    media = load_recording(_recording(), [], source=source)  # re-ingest
+    assert MediaAsset.objects.filter(youtube_id="vid1").count() == 1
+    assert media.transcripts.count() == 1
+    assert TranscriptSegment.objects.filter(transcript__media=media).count() == 1
+
+
+@pytest.mark.django_db
+def test_load_recording_without_segments_creates_no_transcript(context):
+    _, source, _ = context
+    rec = dataclasses.replace(_recording(), segments=(), transcript_origin="")
+    media = load_recording(rec, [], source=source)
+    assert media.transcripts.count() == 0
+
+
+@pytest.mark.django_db
+def test_load_recording_unresolvable_meeting_raises(context):
+    _, source, _ = context
+    decisions = [CoverageDecision(meeting_id=999999, start_offset=0.0, end_offset=None)]
+    with pytest.raises(ValueError, match="no Meeting"):
+        load_recording(_recording(), decisions, source=source)
