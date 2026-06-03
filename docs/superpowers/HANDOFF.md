@@ -1,6 +1,6 @@
 # CivicVault — Session Handoff
 
-**Updated:** 2026-06-01. **Read this first if you are a fresh agent continuing CivicVault.**
+**Updated:** 2026-06-03. **Read this first if you are a fresh agent continuing CivicVault.**
 
 ## What CivicVault is
 
@@ -20,8 +20,22 @@ A public, anonymous-access civic knowledge base for local government — meeting
 - **Shipped (Tasks 0–12):** fixtures in `catalog/tests/fixtures/bcsd/{committee,board}/`; `Motion` model (migration 0008); schema hardening (migration 0009: r2_key/slug uniqueness, confidence-range checks, idempotency keys); the IR (`catalog/ingest/ir.py`); name normalization (`catalog/ingest/names.py`); the BCSD parsers under `catalog/ingest/bcsd/` — `foldername.py`, `event_md.py`, `motions.py` (4 variants), `minutes_md.py`, `agenda_md.py`, `adapter.py`; the generic loader (`catalog/ingest/loader.py`); and the `ingest_bcsd` management command (`catalog/management/commands/ingest_bcsd.py`) with an end-to-end test driving the real 04/17/2025 committee+board pair.
 - **Real-archive smoke test (manual, not CI):** committee → 34 items / 0 votes / 9 appearances; board → 20 items / 16 votes / 12 appearances; all `reviewed=False`.
 
-### Immediate next task: **slice 1c** (not yet planned)
-Slice 1b is done. The next vertical slice per the MVP roadmap (`docs/superpowers/specs/2026-06-01-civicvault-mvp-plan-design.md`) is **slice 1c**: materialize file-attachment `Document` rows from the `event.md ## Files` map (already captured into the IR this slice) + text extraction / OCR / FTS `search_vector` population. Start with brainstorming/writing-plans before implementing. Carry-forward limitations (below) that intersect 1c+: consent-anchor vote attachment, procedural-section votes, same-name Person collisions (Phase 3 entity resolution).
+**COMPLETE — slice 1c, Documents + OCR-flag + FTS — merged to `main` and pushed.** All 10 tasks implemented via subagent-driven-development (fresh implementer per task + two-stage spec/quality review + a final whole-branch review). `uv run pytest -q` → **119 passed**; `makemigrations --check --dry-run` → No changes; `manage.py check` → clean; ruff check + format clean.
+- **Spec:** `docs/superpowers/specs/2026-06-03-civicvault-1c-documents-fts-design.md`. **Plan:** `docs/superpowers/plans/2026-06-03-civicvault-1c-documents-fts.md` (10 tasks).
+- **Shipped:** `pypdf` + `boto3` deps; attachment fields on `ParsedDocument` IR; pure helpers `catalog/ingest/bcsd/files.py` (`r2_key_for`, `document_kind_for`, `title_for`, `extract_pdf_text`); adapter `files/` enumeration → attachment `ParsedDocument`s; generic storage helper `catalog/ingest/storage.py` (`upload_missing`); loader persists attachment `Document` rows (FK to meeting + AgendaItem, `r2_key`/`text`/`ocr_status`); FTS `search_vector` Postgres trigger (migration **0010**, title weight A + text weight B, `english`); opt-in `--upload` command flag; tiny committed PDF byte-fixtures `catalog/tests/fixtures/pdfs.py`.
+- **Scope decisions (locked):** OCR = **detect-and-flag only** (actual OCR → Phase 2); text extraction = **PDFs only** (PPTX/PPT/extension-less get a Document row with `ocr_status=unknown`, empty text); storage = **R2 upload-where-missing** (idempotent), opt-in behind `--upload` (OFF by default so the test suite — where `.env` sets `R2_BUCKET` → live S3 — never hits the network); `Document` is **not** `Reviewable` (it's an evidence artifact, not an asserted fact — only Votes/Motions/Appearances are reviewed).
+- **R2 key convention (verified vs the live `civpulse-data` bucket):** `r2_key = "BCSD/" + <path from the BCSD_* collection dir onward>`. Implemented self-locating in `r2_key_for` (scans for the `BCSD_*` ancestor) rather than via an `archive_root` param as the spec §4 originally sketched — a deliberate refinement (mount-point-agnostic, no caller threading; spec text not updated, code is the source of truth). Fail-loud: raises `ValueError` if no `BCSD_*` ancestor (never persist an un-keyable attachment).
+- **Real-archive smoke test (manual, not CI):** committee `mid-124789` → **64 attachment docs** (53 has_text / 4 ocr_needed / 7 unknown [the 3 pptx + 1 ppt + 3 extension-less non-PDFs]; kinds: 22 policy / 10 memo / 5 presentation / 27 other; 51/64 linked to an agenda item). All files already present in R2 → `--upload` would upload 0.
+
+### Immediate next task: **slice 1d** (not yet planned)
+The next vertical slice per the MVP roadmap (`docs/superpowers/specs/2026-06-01-civicvault-mvp-plan-design.md`) is **slice 1d — the recording slice**: locate the recording for 04/17/2025, parse `info.json` → `MediaAsset`, run the **VTT dedup importer** (strip inline tags, collapse YouTube rolling-window repetition into clean non-overlapping segments → `TranscriptSegment`s), run the §6 matcher → `MeetingCoverage` (the combined committee+board recording yields **two** coverage windows with a §6.4 split suggestion); run faster-whisper only if the `.vtt` is missing. Start with brainstorming/writing-plans before implementing. Carry-forward limitations (below) that intersect later slices: consent-anchor vote attachment, procedural-section votes, same-name Person collisions (Phase 3 entity resolution).
+
+### Deferred from slice 1c (carry forward)
+- **Actual OCR** of `ocr_needed` PDFs (ocrmypdf/Tesseract) → Phase 2 ("OCR pass across all PDFs flagged `ocr_needed`").
+- **PPTX/PPT/extension-less text extraction** → later slice (rows already exist with `ocr_status=unknown`, empty text).
+- **Source C** standalone docs (`BCSD_DOCS/`, `BCSD_POLICIES/` with policy-code linking) → later.
+- **Vendor/Organization NER** from outcome paragraphs → later.
+- **`--upload` against a real R2 backend** is untested in CI (correctly mocked there); the first live `--upload` run is an operator validation step.
 
 ## Decisions locked during slice 1b
 - **A `Motion` model was added** (user decision): a Reviewable fact on `AgendaItem` (kind simple/initial/amended, moved_by/seconded_by Person FKs, sequence, result_text, status). Citations attach to motions too.
@@ -51,9 +65,9 @@ Slice 1b is done. The next vertical slice per the MVP roadmap (`docs/superpowers
 - **Dev DB:** Postgres via `docker compose up -d db` (host port **5433**; `.env` points to it). Do NOT set `--reuse-db` (the incremental-migration workflow needs a fresh test DB each run).
 - **Verify before claiming done:** `uv run pytest -q`, `uv run python manage.py check`, `uv run python manage.py makemigrations --check --dry-run`, `uv run ruff check . && uv run ruff format --check .`.
 
-## Start-of-session checklist (starting slice 1c — 1b is done & merged)
+## Start-of-session checklist (starting slice 1d — 1c is done & merged)
 1. `git status` / `git branch` — expect branch `main`, clean tree (untracked `.claude/` is fine).
-2. `docker compose up -d db`, then `uv run pytest -q` → expect **83 passing**.
-3. Read the MVP roadmap (`docs/superpowers/specs/2026-06-01-civicvault-mvp-plan-design.md`) for the slice 1c scope (file `Document` rows from the `event.md ## Files` map + text/OCR/FTS), and the 1b plan/loader for how the IR already carries the `## Files` data forward.
-4. Brainstorm + write a plan for 1c before implementing (superpowers:writing-plans), then execute via subagent-driven-development (fresh implementer per task + two-stage review), same as 1b.
-5. Carry-forward limitations to fold into 1c+ scope: consent-anchor vote attachment, procedural-section votes, same-name Person collisions (Phase 3 entity resolution).
+2. `docker compose up -d db`, then `uv run pytest -q` → expect **119 passing**.
+3. Read the MVP roadmap (`docs/superpowers/specs/2026-06-01-civicvault-mvp-plan-design.md`) for the slice 1d scope (recordings: `info.json` → MediaAsset, VTT dedup importer → TranscriptSegments, §6 matcher → MeetingCoverage), and `project_brief.md` §6 (the coverage matcher) + §8 Source-B. The recording sidecars live under `archive_data/bcsd/BCSD_MEETING_RECORDINGS/`.
+4. Brainstorm + write a plan for 1d before implementing (superpowers:writing-plans), then execute via subagent-driven-development (fresh implementer per task + two-stage review), same as 1b/1c.
+5. Carry-forward limitations to fold into later scope: consent-anchor vote attachment, procedural-section votes, same-name Person collisions (Phase 3 entity resolution); plus the slice-1c deferrals listed above (actual OCR, PPTX/PPT text, Source C docs/policies).
