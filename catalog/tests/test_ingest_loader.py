@@ -294,3 +294,28 @@ def test_loader_persists_attachment_documents(context):
     extra = docs.get(r2_key="BCSD/x/files/extra.pdf")
     assert extra.agenda_item is None  # meeting-level
     assert extra.ocr_status == Document.OCRStatus.OCR_NEEDED
+
+
+@pytest.mark.django_db
+def test_loader_attachment_documents_are_idempotent(context):
+    jur, source, body = context
+    base = _sample_meeting()
+    parsed = dataclasses.replace(
+        base,
+        raw_documents=base.raw_documents
+        + (
+            ParsedDocument(
+                kind="memo",
+                title="HMH",
+                source_path="/x/files/hmh.pdf",
+                text="chromebooks",
+                r2_key="BCSD/x/files/hmh.pdf",
+                ocr_status="has_text",
+                agenda_item_code="FSS-3",
+                is_attachment=True,
+            ),
+        ),
+    )
+    load_meeting(parsed, source=source, jurisdiction=jur, body=body)
+    meeting = load_meeting(parsed, source=source, jurisdiction=jur, body=body)  # re-ingest
+    assert Document.objects.filter(meeting=meeting, r2_key="BCSD/x/files/hmh.pdf").count() == 1

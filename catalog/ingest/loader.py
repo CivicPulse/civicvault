@@ -88,6 +88,16 @@ def _get_person(parsed_person: ParsedPerson, cache: dict[str, Person]) -> Person
     return person
 
 
+def _doc_kind(raw: str) -> Document.Kind:
+    return Document.Kind(raw) if raw in Document.Kind.values else Document.Kind.OTHER
+
+
+def _ocr_status(raw: str) -> Document.OCRStatus:
+    return (
+        Document.OCRStatus(raw) if raw in Document.OCRStatus.values else Document.OCRStatus.UNKNOWN
+    )
+
+
 @transaction.atomic
 def load_meeting(parsed: ParsedMeeting, *, source, jurisdiction, body) -> Meeting:
     meeting, _ = Meeting.objects.update_or_create(
@@ -117,12 +127,9 @@ def load_meeting(parsed: ParsedMeeting, *, source, jurisdiction, body) -> Meetin
     for pdoc in parsed.raw_documents:
         if pdoc.is_attachment:
             continue  # attachment docs are created after agenda items exist (see below)
-        kind = (
-            Document.Kind(pdoc.kind) if pdoc.kind in Document.Kind.values else Document.Kind.OTHER
-        )
         doc = Document.objects.create(
             title=pdoc.title,
-            kind=kind,
+            kind=_doc_kind(pdoc.kind),
             meeting=meeting,
             source=source,
             source_url=parsed.source_url,
@@ -230,17 +237,15 @@ def load_meeting(parsed: ParsedMeeting, *, source, jurisdiction, body) -> Meetin
             continue
         Document.objects.create(
             title=pdoc.title,
-            kind=(
-                Document.Kind(pdoc.kind)
-                if pdoc.kind in Document.Kind.values
-                else Document.Kind.OTHER
-            ),
+            kind=_doc_kind(pdoc.kind),
             meeting=meeting,
-            agenda_item=item_by_code.get(pdoc.agenda_item_code),
+            # `or None` so an empty code never mis-links to a code-less item's "" key.
+            agenda_item=item_by_code.get(pdoc.agenda_item_code or None),
             source=source,
+            # source_url intentionally omitted; r2_key is the canonical reference.
             r2_key=pdoc.r2_key,
             text=pdoc.text,
-            ocr_status=Document.OCRStatus(pdoc.ocr_status),
+            ocr_status=_ocr_status(pdoc.ocr_status),
         )
 
     return meeting
