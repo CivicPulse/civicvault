@@ -111,13 +111,19 @@ def parse_meeting_folder(folder: Path) -> ParsedMeeting:
         )
 
     # Attachments: invert the per-item file map (filename -> item code), then walk files/.
+    # Only coded items own attachment linkage; code-less procedural sections fall through
+    # to meeting-level (agenda_item_code=None).
     code_by_file: dict[str, str] = {}
     for item in items:
+        if not item.code:
+            continue
         for fname in item.file_names:
             code_by_file.setdefault(fname, item.code)
 
     files_dir = folder / "files"
     if files_dir.is_dir():
+        # r2_key_for() requires a BCSD_* ancestor in the path and raises ValueError
+        # otherwise — fail loud rather than persist an un-keyable attachment.
         for path in sorted(p for p in files_dir.iterdir() if p.is_file()):
             text, ocr_status = ("", "unknown")
             if path.suffix.lower() == ".pdf":

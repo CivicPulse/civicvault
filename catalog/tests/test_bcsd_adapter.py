@@ -62,7 +62,7 @@ def test_minutes_absent_falls_back_to_agenda(tmp_path):
     assert pm.roster == ()
 
 
-def _committee_folder_with_files(tmp_path):
+def _committee_folder_with_files(tmp_path: Path) -> Path:
     folder = (
         tmp_path
         / "BCSD_BOE_MEETINGS"
@@ -76,6 +76,8 @@ def _committee_folder_with_files(tmp_path):
     # One file that the ## Files map links to FSS-3 (text layer), one unmapped (no text).
     write_text_pdf(folder / "files" / "hmh.pdf")  # mapped to FSS-3 in committee/event.md
     write_empty_pdf(folder / "files" / "unmapped-extra.pdf")
+    # A non-PDF file exercises the ("", "unknown") default branch.
+    (folder / "files" / "vendor-notes.txt").write_text("plain text, not a pdf")
     return folder
 
 
@@ -85,7 +87,7 @@ def test_adapter_emits_attachment_documents(tmp_path):
 
     attachments = [d for d in parsed.raw_documents if d.is_attachment]
     by_name = {d.source_path.rsplit("/", 1)[-1]: d for d in attachments}
-    assert set(by_name) == {"hmh.pdf", "unmapped-extra.pdf"}
+    assert set(by_name) == {"hmh.pdf", "unmapped-extra.pdf", "vendor-notes.txt"}
 
     hmh = by_name["hmh.pdf"]
     assert hmh.ocr_status == "has_text"
@@ -99,6 +101,11 @@ def test_adapter_emits_attachment_documents(tmp_path):
     extra = by_name["unmapped-extra.pdf"]
     assert extra.agenda_item_code is None  # not in the ## Files map → meeting-level
     assert extra.ocr_status == "ocr_needed"
+
+    notes = by_name["vendor-notes.txt"]
+    assert notes.ocr_status == "unknown"
+    assert notes.text == ""
+    assert notes.agenda_item_code is None
 
 
 def test_adapter_without_files_dir_emits_no_attachments(tmp_path):
