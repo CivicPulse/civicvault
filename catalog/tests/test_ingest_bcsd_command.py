@@ -101,5 +101,5 @@ def test_command_uploads_only_with_flag(tmp_path):
         "catalog.management.commands.ingest_bcsd.upload_missing", return_value=False
     ) as up:
         call_command("ingest_bcsd", folder, "--upload")
-    assert up.call_count >= 1
+    assert up.call_count == 2  # both staged committee PDFs (hmh.pdf + unmapped-extra.pdf)
     assert all(c.args[0].startswith("BCSD/") for c in up.call_args_list)

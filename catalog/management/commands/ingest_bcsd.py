@@ -64,13 +64,13 @@ class Command(BaseCommand):
             for pdoc in attachments:
                 if pdoc.r2_key and upload_missing(pdoc.r2_key, pdoc.source_path):
                     uploaded += 1
+        upload_note = f"({uploaded} uploaded to R2)" if options["upload"] else "(upload skipped)"
         self.stdout.write(
             self.style.SUCCESS(
                 f"Ingested {meeting} (mid={meeting.source_meeting_id}): "
                 f"{meeting.agenda_items.count()} items, "
                 f"{sum(i.votes.count() for i in meeting.agenda_items.all())} votes, "
                 f"{meeting.appearances.count()} appearances, "
-                f"{len(attachments)} attachment docs "
-                f"({uploaded} uploaded to R2) (all reviewed=False)."
+                f"{len(attachments)} attachment docs {upload_note} (all reviewed=False)."
             )
         )
