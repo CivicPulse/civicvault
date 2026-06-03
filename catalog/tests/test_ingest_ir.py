@@ -78,9 +78,14 @@ def test_parsed_document_attachment_fields_default():
     assert src.is_attachment is False
 
     att = ParsedDocument(
-        kind="memo", title="Action Memo", source_path="/x/files/m.pdf", text="body",
-        r2_key="BCSD/.../files/m.pdf", ocr_status="has_text",
-        agenda_item_code="FSS-3", is_attachment=True,
+        kind="memo",
+        title="Action Memo",
+        source_path="/x/files/m.pdf",
+        text="body",
+        r2_key="BCSD/.../files/m.pdf",
+        ocr_status="has_text",
+        agenda_item_code="FSS-3",
+        is_attachment=True,
     )
     assert att.is_attachment is True
     assert att.agenda_item_code == "FSS-3"
