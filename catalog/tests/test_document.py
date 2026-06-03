@@ -1,7 +1,7 @@
 import datetime
 
 import pytest
-from django.contrib.postgres.search import SearchQuery
+from django.contrib.postgres.search import SearchQuery, SearchRank
 
 from catalog.models import (
     AgendaItem,
@@ -60,3 +60,18 @@ def test_search_vector_trigger_updates_on_text_change():
     qs = Document.objects.filter(pk=doc.pk)
     assert qs.filter(search_vector=SearchQuery("lenovo")).exists()
     assert not qs.filter(search_vector=SearchQuery("microsoft")).exists()
+
+
+@pytest.mark.django_db
+def test_search_vector_weights_title_above_body():
+    in_title = Document.objects.create(title="Chromebooks", text="something else entirely")
+    in_body = Document.objects.create(title="Unrelated heading", text="chromebooks appear here")
+    q = SearchQuery("chromebooks")
+    ranked = list(
+        Document.objects.filter(search_vector=q)
+        .annotate(rank=SearchRank("search_vector", q))
+        .order_by("-rank")
+        .values_list("pk", flat=True)
+    )
+    # Title match (weight A) must rank ahead of body-only match (weight B).
+    assert ranked.index(in_title.pk) < ranked.index(in_body.pk)

@@ -1,7 +1,7 @@
 from django.db import migrations
 
 _FORWARD = r"""
-CREATE FUNCTION catalog_document_search_vector_update() RETURNS trigger AS $$
+CREATE OR REPLACE FUNCTION catalog_document_search_vector_update() RETURNS trigger AS $$
 BEGIN
     NEW.search_vector :=
         setweight(to_tsvector('english', coalesce(NEW.title, '')), 'A') ||
@@ -10,6 +10,7 @@ BEGIN
 END
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS document_search_vector_trigger ON catalog_document;
 CREATE TRIGGER document_search_vector_trigger
 BEFORE INSERT OR UPDATE ON catalog_document
 FOR EACH ROW EXECUTE FUNCTION catalog_document_search_vector_update();
