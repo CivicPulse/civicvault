@@ -126,3 +126,9 @@ def test_command_ingests_attachment_documents(tmp_path):
     extra = attachments.get(r2_key__endswith="/files/unmapped-extra.pdf")
     assert extra.agenda_item is None
     assert extra.ocr_status == Document.OCRStatus.OCR_NEEDED
+    # The empty/ocr_needed doc has no text → not indexed (trigger leaves it unmatched).
+    assert (
+        not attachments.filter(search_vector=SearchQuery("chromebooks"))
+        .filter(pk=extra.pk)
+        .exists()
+    )
