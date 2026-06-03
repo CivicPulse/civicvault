@@ -96,6 +96,16 @@ def test_single_meeting_one_full_window(two_meetings):
     ]
 
 
+@pytest.mark.django_db
+def test_non_combined_with_two_candidates_is_single_window_on_committee(two_meetings):
+    committee, board = two_meetings
+    rec = _recording(is_combined=False)
+    decisions = match_recording(rec, [board, committee])
+    assert decisions == [
+        CoverageDecision(meeting_id=committee.pk, start_offset=0.0, end_offset=None)
+    ]
+
+
 def test_no_candidate_meetings_is_unlinked():
     rec = _recording(is_combined=True)
     assert match_recording(rec, []) == []

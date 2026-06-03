@@ -11,7 +11,7 @@ import logging
 import re
 from dataclasses import dataclass
 
-from catalog.ingest.ir import ParsedRecording
+from catalog.ingest.ir import ParsedRecording, ParsedTranscriptSegment
 
 logger = logging.getLogger(__name__)
 _TO_ORDER = re.compile(r"\bto order\b", re.IGNORECASE)
@@ -25,7 +25,7 @@ class CoverageDecision:
     split_confirmed: bool = False
 
 
-def suggest_split(segments) -> float | None:
+def suggest_split(segments: tuple[ParsedTranscriptSegment, ...]) -> float | None:
     """§6.4: the SECOND 'to order' marks the board meeting's start (committee is
     first). Fewer than two markers → None (caller falls back conservatively)."""
     hits = [s.start for s in segments if _TO_ORDER.search(s.text)]
@@ -60,12 +60,20 @@ def match_recording(parsed: ParsedRecording, candidate_meetings) -> list[Coverag
     if split is None:
         # §6.4 conservative choice: do not guess a midpoint. One full-span window on
         # the earlier meeting, flagged for manual split.
-        logger.warning(
-            "No split marker for combined recording %s; one full-span window on %s, "
-            "manual split needed.",
-            parsed.youtube_id,
-            committee.pk,
-        )
+        if parsed.is_combined:
+            logger.warning(
+                "No split marker for combined recording %s; one full-span window on %s, "
+                "manual split needed.",
+                parsed.youtube_id,
+                committee.pk,
+            )
+        else:
+            logger.warning(
+                "Non-combined recording %s has multiple candidate meetings; "
+                "assigning full-span window to earliest (%s).",
+                parsed.youtube_id,
+                committee.pk,
+            )
         return [CoverageDecision(meeting_id=committee.pk, start_offset=0.0, end_offset=None)]
 
     return [
