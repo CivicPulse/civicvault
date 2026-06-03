@@ -15,7 +15,11 @@ from catalog.ingest.storage import upload_missing
 from catalog.ingest.transcribe import transcribe_flac
 from catalog.models import Jurisdiction, Meeting, Source, TranscriptSegment
 
-JURISDICTION = {"slug": "bibb-county-boe", "name": "Bibb County Board of Education"}
+JURISDICTION = {
+    "slug": "bibb-county-boe",
+    "name": "Bibb County Board of Education",
+    "kind": Jurisdiction.Kind.SCHOOL_DISTRICT,
+}
 SOURCE = {"slug": "bcsd-meeting-recordings", "name": "BCSD Meeting Recordings", "adapter": "bcsd"}
 WINDOW_DAYS = 3
 
@@ -52,7 +56,8 @@ class Command(BaseCommand):
             parsed = dataclasses.replace(parsed, segments=segments, transcript_origin="whisper")
 
         jurisdiction, _ = Jurisdiction.objects.get_or_create(
-            slug=JURISDICTION["slug"], defaults={"name": JURISDICTION["name"]}
+            slug=JURISDICTION["slug"],
+            defaults={"name": JURISDICTION["name"], "kind": JURISDICTION["kind"]},
         )
         source, _ = Source.objects.get_or_create(
             slug=SOURCE["slug"],
