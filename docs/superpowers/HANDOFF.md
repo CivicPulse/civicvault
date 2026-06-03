@@ -14,17 +14,14 @@ A public, anonymous-access civic knowledge base for local government — meeting
 
 **Done and merged to `main` (pushed):** Phase 0 (pytest harness, R2 storage wiring, CI) + Phase 1a (the `catalog` agency-agnostic domain schema + generic `Citation` provenance backbone; migrations 0001–0007).
 
-**IN PROGRESS — slice 1b, the BCSD Source-A parser — on branch `feat/bcsd-parser` (NOT pushed, NOT merged; 19 commits ahead of `main`).**
+**COMPLETE — slice 1b, the BCSD Source-A parser — merged to `main` and pushed.** All 13 tasks (Task 0–12) implemented, two-stage reviewed, and a final whole-branch review passed (with fixes applied). `uv run pytest -q` → **83 passed**; `makemigrations --check --dry-run` → No changes; `manage.py check` → clean; ruff clean.
 - **Plan:** `docs/superpowers/plans/2026-06-01-civicvault-bcsd-parser.md` (13 tasks, Task 0–12).
-- **Execution method:** subagent-driven-development — a fresh implementer subagent per task, then a two-stage review (spec-compliance, then code-quality), controller evaluates reviewer findings rather than applying blindly. The two-stage gate already caught three real bugs the spec tests missed (see "Review catches" below).
-- **Done + reviewed (Tasks 0–11):** fixtures copied into `catalog/tests/fixtures/bcsd/{committee,board}/`; `Motion` model (migration 0008); schema hardening (migration 0009: r2_key/slug uniqueness, confidence-range checks, idempotency keys); the IR (`catalog/ingest/ir.py`); name normalization (`catalog/ingest/names.py`); and the BCSD parsers under `catalog/ingest/bcsd/` — `foldername.py`, `event_md.py`, `motions.py` (4 variants), `minutes_md.py`, `agenda_md.py`, `adapter.py`; plus the generic loader (`catalog/ingest/loader.py`).
-- **Current state:** `uv run pytest -q` → **79 passed**; `makemigrations --check --dry-run` → No changes; `manage.py check` → clean; ruff clean. Working tree clean (only untracked `.claude/`).
+- **Execution method:** subagent-driven-development — a fresh implementer subagent per task, then a two-stage review (spec-compliance, then code-quality), controller evaluates reviewer findings rather than applying blindly. The two-stage gate caught three real bugs the spec tests missed (see "Review catches" below); the final whole-branch review caught the within-load unique-constraint risk (now fixed — see "Former open risk" below).
+- **Shipped (Tasks 0–12):** fixtures in `catalog/tests/fixtures/bcsd/{committee,board}/`; `Motion` model (migration 0008); schema hardening (migration 0009: r2_key/slug uniqueness, confidence-range checks, idempotency keys); the IR (`catalog/ingest/ir.py`); name normalization (`catalog/ingest/names.py`); the BCSD parsers under `catalog/ingest/bcsd/` — `foldername.py`, `event_md.py`, `motions.py` (4 variants), `minutes_md.py`, `agenda_md.py`, `adapter.py`; the generic loader (`catalog/ingest/loader.py`); and the `ingest_bcsd` management command (`catalog/management/commands/ingest_bcsd.py`) with an end-to-end test driving the real 04/17/2025 committee+board pair.
+- **Real-archive smoke test (manual, not CI):** committee → 34 items / 0 votes / 9 appearances; board → 20 items / 16 votes / 12 appearances; all `reviewed=False`.
 
-### Immediate next task: **Task 12** (the LAST task)
-`catalog/management/commands/ingest_bcsd.py` + `catalog/tests/test_ingest_bcsd_command.py` — wire a folder path → `parse_meeting_folder` (adapter) → `load_meeting` (loader), bootstrapping the BCSD `Jurisdiction`/`Source`/body `Organization`, and drive the real 04/17/2025 committee+board pair end-to-end. **Full task text (tests + command code + discipline) is in the plan, Task 12.** Then:
-1. Run the manual real-archive smoke test (plan Task 12, Step 6) against `archive_data/bcsd/.../2025/04/...` (writes to dev DB; not CI).
-2. Dispatch a **final whole-branch code review** (superpowers:requesting-code-review over `main..HEAD`).
-3. Use **superpowers:finishing-a-development-branch** to merge `feat/bcsd-parser` → `main` and **push `main`** (pushing IS expected for this project — see conventions).
+### Immediate next task: **slice 1c** (not yet planned)
+Slice 1b is done. The next vertical slice per the MVP roadmap (`docs/superpowers/specs/2026-06-01-civicvault-mvp-plan-design.md`) is **slice 1c**: materialize file-attachment `Document` rows from the `event.md ## Files` map (already captured into the IR this slice) + text extraction / OCR / FTS `search_vector` population. Start with brainstorming/writing-plans before implementing. Carry-forward limitations (below) that intersect 1c+: consent-anchor vote attachment, procedural-section votes, same-name Person collisions (Phase 3 entity resolution).
 
 ## Decisions locked during slice 1b
 - **A `Motion` model was added** (user decision): a Reviewable fact on `AgendaItem` (kind simple/initial/amended, moved_by/seconded_by Person FKs, sequence, result_text, status). Citations attach to motions too.
@@ -54,9 +51,9 @@ A public, anonymous-access civic knowledge base for local government — meeting
 - **Dev DB:** Postgres via `docker compose up -d db` (host port **5433**; `.env` points to it). Do NOT set `--reuse-db` (the incremental-migration workflow needs a fresh test DB each run).
 - **Verify before claiming done:** `uv run pytest -q`, `uv run python manage.py check`, `uv run python manage.py makemigrations --check --dry-run`, `uv run ruff check . && uv run ruff format --check .`.
 
-## Start-of-session checklist (resuming slice 1b)
-1. `git status` / `git branch` — expect branch `feat/bcsd-parser`, clean tree (untracked `.claude/` is fine).
-2. `docker compose up -d db`, then `uv run pytest -q` → expect **79 passing**.
-3. Read the 1b plan's **Task 12** (`docs/superpowers/plans/2026-06-01-civicvault-bcsd-parser.md`) — it has the full command + test code.
-4. Execute Task 12 via a fresh implementer subagent + two-stage review (same as Tasks 1–11; commit SHAs for the prior tasks are in `git log main..HEAD`).
-5. Run the manual real-archive smoke test, then final whole-branch review, then finish the branch (merge → main → push).
+## Start-of-session checklist (starting slice 1c — 1b is done & merged)
+1. `git status` / `git branch` — expect branch `main`, clean tree (untracked `.claude/` is fine).
+2. `docker compose up -d db`, then `uv run pytest -q` → expect **83 passing**.
+3. Read the MVP roadmap (`docs/superpowers/specs/2026-06-01-civicvault-mvp-plan-design.md`) for the slice 1c scope (file `Document` rows from the `event.md ## Files` map + text/OCR/FTS), and the 1b plan/loader for how the IR already carries the `## Files` data forward.
+4. Brainstorm + write a plan for 1c before implementing (superpowers:writing-plans), then execute via subagent-driven-development (fresh implementer per task + two-stage review), same as 1b.
+5. Carry-forward limitations to fold into 1c+ scope: consent-anchor vote attachment, procedural-section votes, same-name Person collisions (Phase 3 entity resolution).
