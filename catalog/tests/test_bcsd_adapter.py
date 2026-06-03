@@ -46,7 +46,8 @@ def test_board_roll_call_carried_through(tmp_path):
     anchor = next(it for it in pm.agenda_items if it.title.startswith("Confirmation of Minutes"))
     assert len(anchor.votes) == 8
     speakers = {a.person.full_name for a in pm.appearances if a.role == "speaker"}
-    assert {"Attorney Roy Miller", "Jessican Strohmetz"} <= speakers
+    # "Attorney" title is stripped from the display name (raw_name keeps the original).
+    assert {"Roy Miller", "Jessican Strohmetz"} <= speakers
 
 
 def test_minutes_absent_falls_back_to_agenda(tmp_path):

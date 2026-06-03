@@ -53,8 +53,10 @@ def test_board_roll_call_votes():
 def test_board_visitor_and_pledge_appearances():
     parsed = parse_minutes_md(fixture_text("board", "minutes.md"))
     speakers = {a.person.full_name for a in parsed.appearances if a.role == "speaker"}
-    assert "Attorney Roy Miller" in speakers
+    assert "Roy Miller" in speakers  # leading "Attorney" title stripped from full_name
     assert "Jessican Strohmetz" in speakers  # OCR typo preserved
+    # The raw source text is retained verbatim for provenance/audit.
+    assert any(a.person.raw_name == "Attorney Roy Miller" for a in parsed.appearances)
     pledges = [a for a in parsed.appearances if a.role == "pledge"]
     assert len(pledges) == 1
     assert "Nikolai Connor Floore" in pledges[0].person.raw_name
