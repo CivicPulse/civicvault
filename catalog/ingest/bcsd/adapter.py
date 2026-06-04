@@ -36,6 +36,18 @@ def _files_for_item(files: dict[str, str], code: str, title: str) -> tuple[str, 
     return tuple(out)
 
 
+_TRAILING_PAREN = re.compile(r"\s*\([^)]*\)\s*$")
+
+
+def _without_classifier(title: str) -> str:
+    """Drop a single trailing parenthetical classifier — e.g. '(ACTION)',
+    '(BOE Action Item)', '(PRESENTATION & ACTION)', '(s)'. The minutes and event
+    parsers strip these by different rules, so the same item can carry one on one
+    side but not the other; canonicalizing both sides lets a code-less item still
+    join its outcome instead of silently dropping its votes."""
+    return _TRAILING_PAREN.sub("", title).strip()
+
+
 def parse_meeting_folder(folder: Path) -> ParsedMeeting:
     folder = Path(folder)
     fn = parse_folder_name(folder.name)
@@ -86,14 +98,35 @@ def parse_meeting_folder(folder: Path) -> ParsedMeeting:
             )
         )
 
+    # Fallback join index: outcomes keyed by their title with a trailing
+    # parenthetical classifier removed. Built only for keys whose stripped form
+    # is unambiguous (a stripped key shared by two outcomes is excluded, so the
+    # fallback never mis-attaches an outcome to the wrong item).
+    stripped_outcomes = {}
+    if minutes is not None:
+        stripped_counts: dict[str, int] = {}
+        for key in minutes.outcomes:
+            sk = _without_classifier(key)
+            stripped_counts[sk] = stripped_counts.get(sk, 0) + 1
+        stripped_outcomes = {
+            _without_classifier(key): oc
+            for key, oc in minutes.outcomes.items()
+            if stripped_counts[_without_classifier(key)] == 1
+        }
+
     items: list[ParsedAgendaItem] = []
     for ev in event_items:
         outcome = None
         if minutes is not None:
-            # Code-less items are keyed by title, so two code-less items sharing
-            # a title would shadow each other in minutes.outcomes (a known,
-            # low-risk limitation for the current BCSD data).
-            outcome = minutes.outcomes.get(ev.code) or minutes.outcomes.get(ev.title)
+            # Exact join by code, then by title; finally a classifier-stripped
+            # fallback (the minutes/event parsers strip trailing "(...)" markers
+            # inconsistently). Two code-less items sharing a title still shadow
+            # each other (a known, low-risk limitation for the current BCSD data).
+            outcome = (
+                minutes.outcomes.get(ev.code)
+                or minutes.outcomes.get(ev.title)
+                or stripped_outcomes.get(_without_classifier(ev.title))
+            )
         items.append(
             ParsedAgendaItem(
                 order=ev.order,

@@ -2,7 +2,7 @@ import datetime
 import shutil
 from pathlib import Path
 
-from catalog.ingest.bcsd.adapter import parse_meeting_folder
+from catalog.ingest.bcsd.adapter import _without_classifier, parse_meeting_folder
 from catalog.tests.fixtures import FIXTURES_DIR
 from catalog.tests.fixtures.pdfs import write_empty_pdf, write_text_pdf
 
@@ -117,3 +117,45 @@ def test_adapter_without_files_dir_emits_no_attachments(tmp_path):
         shutil.copy(FIXTURES_DIR / "board" / fname, folder / fname)
     parsed = parse_meeting_folder(folder)
     assert [d for d in parsed.raw_documents if d.is_attachment] == []
+
+
+def test_without_classifier_strips_trailing_parenthetical():
+    assert _without_classifier("Approval of X (BOE Action Item)") == "Approval of X"
+    assert _without_classifier("Millage Rate (PRESENTATION & ACTION)") == "Millage Rate"
+    assert _without_classifier("Search Finalist(s)") == "Search Finalist"
+    assert _without_classifier("Plain Title") == "Plain Title"
+
+
+def test_join_tolerates_classifier_suffix_asymmetry(tmp_path):
+    # event.md keeps a trailing "(BOE Action Item)" classifier that the minutes
+    # parser strips; the roll call must still attach to the item.
+    folder = tmp_path / "2025-01-15_1600_committee-meeting_mid-888001"
+    folder.mkdir()
+    (folder / "event.md").write_text(
+        "# Committee Meeting\n\n"
+        "- **Meeting ID:** 888001\n"
+        "- **Meeting Type:** Committee Meeting\n\n"
+        "## Agenda Items\n\n"
+        "- I. New Business\n"
+        "- i. Approval of Widget Purchase (BOE Action Item)\n\n"
+        "## Files\n",
+        encoding="utf-8",
+    )
+    (folder / "minutes.md").write_text(
+        "# Committee Meeting\n\n"
+        "## Meeting Minutes\n\n"
+        "### Attendance\n\n"
+        "#### Voting Members\n\n"
+        "- Ms. Alice Adams, President\n"
+        "- Mr. Bob Brown, Board Member\n\n"
+        "### I. New Business\n\n"
+        "#### i. Approval of Widget Purchase (BOE Action Item)\n\n"
+        "_Voting results:_\n\n"
+        "- Yes: Ms. Alice Adams\n"
+        "- Yes: Mr. Bob Brown\n",
+        encoding="utf-8",
+    )
+    parsed = parse_meeting_folder(folder)
+    item = next(i for i in parsed.agenda_items if "Widget Purchase" in i.title)
+    assert len(item.votes) == 2
+    assert {v.person.full_name for v in item.votes} == {"Alice Adams", "Bob Brown"}
