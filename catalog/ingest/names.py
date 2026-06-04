@@ -26,14 +26,17 @@ _TITLE = re.compile(
 )
 _WS = re.compile(r"\s+")
 
-_NAME_TOKEN = re.compile(r"^[A-Z][A-Za-z''.-]*$")
+_NAME_TOKEN = re.compile(r"^[A-Z][A-Za-z'‘’.\-]*$")
 _NAME_PARTICLES = {"de", "van", "von", "der", "da", "del", "la", "di", "bin", "al"}
 
 
 def looks_like_name(text: str) -> bool:
     """True if text is shaped like a person name: 1–5 tokens, no terminal sentence
     punctuation, every token Capitalized (or a known nobiliary particle). Rejects
-    prose ("Four people addressed the Board.") and role descriptors ("Board member")."""
+    prose ("Four people addressed the Board.") and role descriptors ("Board member").
+
+    Expects already-normalized text (callers pass normalize_name(raw)); it does not
+    itself strip honorifics, so "Dr. Henry Ficklin" would pass as-is."""
     text = (text or "").strip()
     if not text or text[-1] in ".:;,":
         return False
