@@ -69,7 +69,7 @@ def test_role_hint_via_split():
         "John Q. Public",
         "Maria de la Cruz",
         "O'Brien",  # straight apostrophe
-        "O’Brien",  # curly apostrophe (OCR smart-quote) must also pass
+        "O\u2019Brien",  # curly apostrophe (U+2019, OCR smart-quote) must also pass
         "Dr. Henry Ficklin",  # documents: raw honorific passes (caller normalizes first)
     ],
 )

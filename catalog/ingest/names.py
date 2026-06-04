@@ -26,7 +26,7 @@ _TITLE = re.compile(
 )
 _WS = re.compile(r"\s+")
 
-_NAME_TOKEN = re.compile(r"^[A-Z][A-Za-z'‘’.\-]*$")
+_NAME_TOKEN = re.compile(r"^[A-Z][A-Za-z'\u2018\u2019.\-]*$")
 _NAME_PARTICLES = {"de", "van", "von", "der", "da", "del", "la", "di", "bin", "al"}
 
 
