@@ -276,12 +276,8 @@ def document_source(request, pk):
 GRAPH_TYPES = {
     "jurisdiction": {"label": "Jurisdiction", "shape": "hexagon", "hue": 90},
     "organization": {"label": "Body", "shape": "square", "hue": 300},
-    "meeting": {"label": "Meeting", "shape": "diamond", "hue": 150},
     "person": {"label": "Person", "shape": "circle", "hue": 25},
 }
-
-# How many source documents to surface inline on a meeting node's detail rail.
-GRAPH_MEETING_DOCS = 8
 
 
 def _search_href(query):
@@ -292,12 +288,13 @@ def _search_href(query):
 def graph(request):
     """The relationship graph: the public record as a constellation of entities.
 
-    Renders the corpus as nodes (Jurisdiction, Body, Meeting, Person) connected by
-    real relationships (a body sits in a jurisdiction, a meeting is held by a body,
-    a person appeared at / voted in a meeting). Documents and agenda items are not
-    nodes — at corpus scale they'd swamp the graph — so they live in a selected
-    node's detail rail instead, where their source links keep provenance one click
-    away (Principle 1).
+    Renders the corpus as nodes (Jurisdiction, Body, Person). The signature edge is
+    a direct person<->body tie ("participated in this body's record"), so a body —
+    not a meeting date — is the glue that holds people together. The meetings behind
+    each tie ride along as the edge's payload: select a person + a body (or the edge
+    between them) and the rail lists every shared meeting with that person's role and
+    votes. Meetings and documents are evidence in the detail rail, not nodes — at
+    corpus scale they'd swamp the graph (Principle 1: provenance one click away).
 
     The review gate is load-bearing: Person and Organization are Reviewable, so only
     reviewed=True entities and reviewed facts (Vote/Appearance/Motion) are ever
@@ -373,49 +370,12 @@ def graph(request):
                 }
             )
 
-    # ---- Meetings (always public) --------------------------------------
-    meeting_qs = Meeting.objects.select_related("body").annotate(
-        n_docs=Count("documents", distinct=True),
-        n_items=Count("agenda_items", distinct=True),
-    )
-    for m in meeting_qs:
-        mid = f"meeting-{m.pk}"
-        n_votes = Vote.objects.filter(reviewed=True, agenda_item__meeting=m).count()
-        docs = [
-            {
-                "title": d.title,
-                "href": (
-                    reverse("core:document_source", args=[d.pk])
-                    if d.access_level == Document.AccessLevel.PUBLIC and (d.source_url or d.r2_key)
-                    else ""
-                ),
-            }
-            for d in m.documents.all()[:GRAPH_MEETING_DOCS]
-        ]
-        nodes.append(
-            {
-                "id": mid,
-                "type": "meeting",
-                "label": f"{m.date:%b %-d, %Y}",
-                "sublabel": m.get_kind_display(),
-                "href": "",
-                "stats": [
-                    ["Agenda items", m.n_items],
-                    ["Documents", m.n_docs],
-                    ["Recorded votes", n_votes],
-                ],
-                "docs": docs,
-            }
-        )
+    # Meeting metadata, kept out of the node set: meetings are evidence carried on
+    # the person<->body edges, not glue. body_meeting maps a meeting to its body.
+    meeting_meta = {}  # meeting_pk -> (body_pk, date, kind_display)
+    for m in Meeting.objects.select_related("body"):
         if m.body_id and m.body_id in org_ids:
-            edges.append(
-                {
-                    "source": mid,
-                    "target": f"organization-{m.body_id}",
-                    "kind": "held_by",
-                    "label": "held by",
-                }
-            )
+            meeting_meta[m.pk] = (m.body_id, m.date, m.get_kind_display())
 
     # ---- People (reviewed only) + their meeting ties -------------------
     # Aggregate per-person vote breakdowns and motion counts up front so each
@@ -432,12 +392,15 @@ def graph(request):
     ):
         seconded[row["seconded_by"]] += 1
 
-    # Person -> meeting ties, unioned from appearances and votes, with a weight
-    # so the live layout can weight a heavier tie's spring.
-    pm = defaultdict(lambda: {"votes": 0, "appeared": False})
+    # Person<->meeting participation, unioned from appearances and votes, keeping
+    # role + vote count so the person<->body edge can list each meeting with detail.
+    pm = defaultdict(lambda: {"votes": 0, "appeared": False, "role": ""})
     appearances_by_person = defaultdict(int)
-    for ap in Appearance.objects.filter(reviewed=True).values("person_id", "meeting_id"):
-        pm[(ap["person_id"], ap["meeting_id"])]["appeared"] = True
+    role_label = dict(Appearance.Role.choices)
+    for ap in Appearance.objects.filter(reviewed=True).values("person_id", "meeting_id", "role"):
+        cell = pm[(ap["person_id"], ap["meeting_id"])]
+        cell["appeared"] = True
+        cell["role"] = role_label.get(ap["role"], "")
         appearances_by_person[ap["person_id"]] += 1
     for vt in Vote.objects.filter(reviewed=True).values("person_id", "agenda_item__meeting_id"):
         pm[(vt["person_id"], vt["agenda_item__meeting_id"])]["votes"] += 1
@@ -473,22 +436,40 @@ def graph(request):
             }
         )
 
+    # Collapse person<->meeting ties into one person<->body edge each; the meetings
+    # become the edge's payload — the list you read when you select the pair.
+    pb = defaultdict(list)  # (person_pk, body_pk) -> [meeting row dicts]
     for (person_pk, meeting_pk), tie in pm.items():
-        if person_pk not in person_ids:
+        if person_pk not in person_ids or meeting_pk not in meeting_meta:
             continue
-        if tie["votes"] and tie["appeared"]:
-            label, kind, weight = f"voted ({tie['votes']})", "voted", tie["votes"]
-        elif tie["votes"]:
-            label, kind, weight = f"voted ({tie['votes']})", "voted", tie["votes"]
-        else:
-            label, kind, weight = "appeared", "appeared", 1
+        body_pk, mdate, mkind = meeting_meta[meeting_pk]
+        notes = []
+        if tie["votes"]:
+            notes.append(f"voted ({tie['votes']})")
+        if tie["appeared"]:
+            notes.append(tie["role"].lower() if tie["role"] else "appeared")
+        pb[(person_pk, body_pk)].append(
+            {
+                "date": mdate,
+                "label": f"{mdate:%b %-d, %Y}",
+                "sub": mkind,
+                "note": " · ".join(notes) or "participated",
+            }
+        )
+
+    for (person_pk, body_pk), mtgs in pb.items():
+        mtgs.sort(key=lambda r: r["date"], reverse=True)
+        for r in mtgs:
+            del r["date"]  # only needed for the sort; keep the JSON lean
+        n = len(mtgs)
         edges.append(
             {
                 "source": f"person-{person_pk}",
-                "target": f"meeting-{meeting_pk}",
-                "kind": kind,
-                "label": label,
-                "weight": weight,
+                "target": f"organization-{body_pk}",
+                "kind": "participates",
+                "label": f"{n} meeting" + ("" if n == 1 else "s"),
+                "weight": n,
+                "meetings": mtgs,
             }
         )
 
@@ -512,6 +493,7 @@ def graph(request):
             "to": id_label[e["target"]],
             "source_type": id_type[e["source"]],
             "target_type": id_type[e["target"]],
+            "meetings": e.get("meetings", []),
         }
         for e in edges
     ]

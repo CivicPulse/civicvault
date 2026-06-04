@@ -28,9 +28,8 @@
   // ---- Visual vocabulary (mirrors GRAPH_TYPES in views.py) -----------------
   const TYPE = {
     jurisdiction: { label: "Jurisdiction", shape: "hexagon", hue: 90, r: 26 },
-    organization: { label: "Body", shape: "square", hue: 300, r: 21 },
-    meeting: { label: "Meeting", shape: "diamond", hue: 150, r: 16 },
-    person: { label: "Person", shape: "circle", hue: 25, r: 12 },
+    organization: { label: "Body", shape: "square", hue: 300, r: 22 },
+    person: { label: "Person", shape: "circle", hue: 25, r: 13 },
   };
   const typeOf = (n) => TYPE[n.type] || { label: n.type, shape: "circle", hue: 0, r: 12 };
 
@@ -66,19 +65,21 @@
   // adjacency for the rail's "connections" list
   const neighbors = new Map(nodes.map((n) => [n.id, []]));
   links.forEach((l) => {
-    neighbors.get(l.source.id).push({ node: l.target, label: l.label, dir: "out" });
-    neighbors.get(l.target.id).push({ node: l.source, label: l.label, dir: "in" });
+    neighbors.get(l.source.id).push({ node: l.target, label: l.label, dir: "out", edge: l });
+    neighbors.get(l.target.id).push({ node: l.source, label: l.label, dir: "in", edge: l });
   });
 
   // ---- SVG scaffold --------------------------------------------------------
   const svg = stage.querySelector("[data-graph-canvas]");
   const gEdges = document.createElementNS(SVGNS, "g");
+  const gEdgeHit = document.createElementNS(SVGNS, "g"); // fat transparent click targets
   const gEdgeLabels = document.createElementNS(SVGNS, "g");
   const gNodes = document.createElementNS(SVGNS, "g");
   gEdges.setAttribute("class", "g-edges");
+  gEdgeHit.setAttribute("class", "g-edgehits");
   gEdgeLabels.setAttribute("class", "g-edgelabels");
   gNodes.setAttribute("class", "g-nodes");
-  svg.append(gEdges, gEdgeLabels, gNodes);
+  svg.append(gEdges, gEdgeHit, gEdgeLabels, gNodes);
 
   function shapeEl(type, r) {
     const t = TYPE[type] || {};
@@ -115,13 +116,18 @@
     }
   }
 
-  // Build node + edge DOM
-  const linkEls = links.map((l) => {
+  // Build edge DOM: a thin visible line + a fat transparent line for easy clicking.
+  links.forEach((l) => {
     const line = document.createElementNS(SVGNS, "line");
     line.setAttribute("class", "g-edge");
     gEdges.appendChild(line);
     l.el = line;
-    return line;
+
+    const hit = document.createElementNS(SVGNS, "line");
+    hit.setAttribute("class", "g-edge-hit");
+    hit.__link = l;
+    gEdgeHit.appendChild(hit);
+    l.hit = hit;
   });
 
   nodes.forEach((n) => {
@@ -222,10 +228,12 @@
 
   function render() {
     links.forEach((l) => {
-      l.el.setAttribute("x1", l.source.x);
-      l.el.setAttribute("y1", l.source.y);
-      l.el.setAttribute("x2", l.target.x);
-      l.el.setAttribute("y2", l.target.y);
+      for (const el of [l.el, l.hit]) {
+        el.setAttribute("x1", l.source.x);
+        el.setAttribute("y1", l.source.y);
+        el.setAttribute("x2", l.target.x);
+        el.setAttribute("y2", l.target.y);
+      }
     });
     nodes.forEach((n) => {
       n.el.setAttribute("transform", `translate(${n.x.toFixed(2)} ${n.y.toFixed(2)})`);
@@ -287,18 +295,23 @@
     { passive: false }
   );
 
-  // ---- Pointer: pan background, drag nodes ---------------------------------
-  let drag = null; // {node|null, startX, startY, moved}
+  // ---- Pointer: pan background, drag nodes, click edges -------------------
+  let drag = null; // {node|edge|null, sx, sy, moved, mod}
   svg.addEventListener("pointerdown", (ev) => {
     const nodeG = ev.target.closest(".gnode");
-    const start = clientToWorld(ev.clientX, ev.clientY);
     if (nodeG) {
-      const n = byId.get(nodeG.dataset ? nodeG.dataset.id : null) || nodes.find((x) => x.el === nodeG);
-      drag = { node: n, sx: ev.clientX, sy: ev.clientY, moved: false };
+      const n = byId.get(nodeG.dataset.id) || nodes.find((x) => x.el === nodeG);
+      const mod = ev.shiftKey || ev.metaKey || ev.ctrlKey;
+      drag = { node: n, sx: ev.clientX, sy: ev.clientY, moved: false, mod };
       n.fx = n.x;
       n.fy = n.y;
     } else {
-      drag = { node: null, sx: ev.clientX, sy: ev.clientY, wx: start.x, wy: start.y, vx: view.x, vy: view.y, moved: false };
+      const hitEl = ev.target.closest(".g-edge-hit");
+      if (hitEl && hitEl.__link) {
+        drag = { edge: hitEl.__link, sx: ev.clientX, sy: ev.clientY, moved: false };
+      } else {
+        drag = { node: null, sx: ev.clientX, sy: ev.clientY, vx: view.x, vy: view.y, moved: false };
+      }
     }
     svg.setPointerCapture(ev.pointerId);
     svg.classList.add("is-grabbing");
@@ -311,7 +324,7 @@
       drag.node.fx = w.x;
       drag.node.fy = w.y;
       reheat(0.3);
-    } else {
+    } else if (!drag.edge) {
       const rect = svg.getBoundingClientRect();
       view.x = drag.vx - ((ev.clientX - drag.sx) / rect.width) * view.w;
       view.y = drag.vy - ((ev.clientY - drag.sy) / rect.height) * view.h;
@@ -324,11 +337,25 @@
     if (drag.node) {
       drag.node.fx = null;
       drag.node.fy = null;
-      if (!drag.moved) select(drag.node, false);
+      if (!drag.moved) {
+        const n = drag.node;
+        // modifier-click a second node: open the relationship if one exists
+        if (drag.mod && selected && selected.id !== n.id) {
+          const e = edgeBetween(selected, n);
+          if (e) selectEdge(e);
+          else select(n, false);
+        } else {
+          select(n, false);
+        }
+      }
+    } else if (drag.edge && !drag.moved) {
+      selectEdge(drag.edge);
     }
     drag = null;
     if (ev && ev.pointerId != null) {
-      try { svg.releasePointerCapture(ev.pointerId); } catch (_) {}
+      try {
+        svg.releasePointerCapture(ev.pointerId);
+      } catch (_) {}
     }
   }
   svg.addEventListener("pointerup", endDrag);
@@ -336,8 +363,16 @@
 
   // ---- Selection + hover + the detail rail --------------------------------
   const rail = stage.querySelector("[data-graph-rail]");
-  let selected = null;
+  let selected = null; // selected node (single-entity view)
+  let selectedEdge = null; // selected edge (person<->body relationship view)
   let hovered = null;
+
+  const edgeBetween = (a, b) =>
+    links.find(
+      (l) =>
+        (l.source.id === a.id && l.target.id === b.id) ||
+        (l.source.id === b.id && l.target.id === a.id)
+    );
 
   // Interaction state shared by selection, type filters, and search. One
   // refresh() owns every is-* class so the three inputs never stomp each other.
@@ -348,22 +383,30 @@
 
   function refresh() {
     const q = searchQuery.trim().toLowerCase();
-    const nbrs = selected ? neighborIdSet(selected) : null;
     let visibleMatches = 0;
+
+    // Which nodes/edges stay bright is driven by the current selection context:
+    // an edge selection lights its two endpoints; a node selection lights it +
+    // its neighbours; search overrides both with match dimming.
+    const highlight = selectedEdge
+      ? new Set([selectedEdge.source.id, selectedEdge.target.id])
+      : selected
+        ? new Set([selected.id, ...neighborIdSet(selected)])
+        : null;
 
     nodes.forEach((n) => {
       const typeVis = !hiddenTypes.has(n.type);
       const match = nodeMatches(n, q);
-      const sel = !!(selected && n.id === selected.id);
-      const nbr = !!(nbrs && nbrs.has(n.id));
+      const isSel =
+        (!!selected && n.id === selected.id) ||
+        (!!selectedEdge && (n.id === selectedEdge.source.id || n.id === selectedEdge.target.id));
       n.el.classList.toggle("is-filtered", !typeVis);
-      // search governs dimming when active; otherwise selection does
       let dim = false;
       if (q) dim = typeVis && !match;
-      else if (selected) dim = !sel && !nbr;
-      n.el.classList.toggle("is-dim", dim && !sel);
-      n.el.classList.toggle("is-selected", sel);
-      n.el.classList.toggle("is-match", !!(q && match && typeVis && !sel));
+      else if (highlight) dim = !highlight.has(n.id);
+      n.el.classList.toggle("is-dim", dim && !isSel);
+      n.el.classList.toggle("is-selected", isSel);
+      n.el.classList.toggle("is-match", !!(q && match && typeVis && !isSel));
       if (typeVis && match) visibleMatches++;
     });
 
@@ -371,10 +414,14 @@
       const typeVis =
         !hiddenTypes.has(l.source.type) && !hiddenTypes.has(l.target.type);
       l.el.classList.toggle("is-filtered", !typeVis);
+      if (l.hit) l.hit.classList.toggle("is-filtered", !typeVis);
       let active = false;
       let dim = false;
       if (q) {
         dim = !(nodeMatches(l.source, q) && nodeMatches(l.target, q));
+      } else if (selectedEdge) {
+        active = l === selectedEdge;
+        dim = !active;
       } else if (selected) {
         active = l.source.id === selected.id || l.target.id === selected.id;
         dim = !active;
@@ -383,32 +430,35 @@
       l.el.classList.toggle("is-dim", dim);
     });
 
-    // edge labels only make sense when reading one selected node, not while searching
-    if (selected && !q) renderActiveEdgeLabels();
-    else gEdgeLabels.replaceChildren();
-
+    renderActiveEdgeLabels(q);
     updateSearchFeedback(q, visibleMatches);
     refreshList(q);
   }
 
-  function renderActiveEdgeLabels() {
+  // Show the "N meetings" label on whichever edges are active (the selected edge,
+  // or every edge touching a selected node) — never while searching.
+  function renderActiveEdgeLabels(q) {
     gEdgeLabels.replaceChildren();
-    if (!selected) return;
-    links
-      .filter((l) => l.source.id === selected.id || l.target.id === selected.id)
-      .forEach((l) => {
-        if (!l.label) return;
-        const t = document.createElementNS(SVGNS, "text");
-        t.setAttribute("class", "g-edgelabel");
-        t.setAttribute("text-anchor", "middle");
-        t.textContent = l.label;
-        gEdgeLabels.appendChild(t);
-        l.labelEl = t;
-      });
+    links.forEach((l) => {
+      l.labelEl = null;
+    });
+    if (q) return;
+    let active = [];
+    if (selectedEdge) active = [selectedEdge];
+    else if (selected)
+      active = links.filter((l) => l.source.id === selected.id || l.target.id === selected.id);
+    active.forEach((l) => {
+      if (!l.label) return;
+      const t = document.createElementNS(SVGNS, "text");
+      t.setAttribute("class", "g-edgelabel");
+      t.setAttribute("text-anchor", "middle");
+      t.textContent = l.label;
+      gEdgeLabels.appendChild(t);
+      l.labelEl = t;
+    });
     positionActiveEdgeLabels();
   }
   function positionActiveEdgeLabels() {
-    if (!selected) return;
     links.forEach((l) => {
       if (!l.labelEl) return;
       l.labelEl.setAttribute("x", (l.source.x + l.target.x) / 2);
@@ -445,15 +495,19 @@
           : `<li><span>${esc(d.title)}</span></li>`
       )
       .join("");
+    // A connection whose edge carries meetings opens the relationship view; a
+    // structural one (body -> jurisdiction) just navigates to the neighbour.
     const connItems = conns
-      .map(
-        (c) =>
-          `<li><button type="button" class="gr-conn" data-goto="${esc(c.node.id)}">
+      .map((c) => {
+        const hasMeetings = c.edge && c.edge.meetings && c.edge.meetings.length;
+        return `<li><button type="button" class="gr-conn" data-conn="${esc(c.node.id)}">
              <span class="gr-conn__rel mono">${esc(c.label)}</span>
              <span class="gr-conn__name">${esc(c.node.label)}</span>
-           </button></li>`
-      )
+             ${hasMeetings ? '<span class="gr-conn__go" aria-hidden="true">→</span>' : ""}
+           </button></li>`;
+      })
       .join("");
+    const connTitle = n.type === "person" ? "Bodies" : "Connections";
 
     return `
       <div class="gr-head" style="--c: oklch(74% 0.135 ${t.hue});">
@@ -463,30 +517,99 @@
       </div>
       ${stats ? `<dl class="gr-stats">${stats}</dl>` : ""}
       ${docs ? `<div class="gr-block"><h3 class="gr-block__title">Source documents</h3><ul class="gr-docs">${docs}</ul></div>` : ""}
-      ${connItems ? `<div class="gr-block"><h3 class="gr-block__title">Connections <span class="mono">${conns.length}</span></h3><ul class="gr-conns">${connItems}</ul></div>` : ""}
+      ${connItems ? `<div class="gr-block"><h3 class="gr-block__title">${connTitle} <span class="mono">${conns.length}</span></h3><ul class="gr-conns">${connItems}</ul></div>` : ""}
       ${n.href ? `<a class="gr-cta" href="${esc(n.href)}">Follow to the record <span aria-hidden="true">↗</span></a>` : ""}
     `;
   }
 
-  function select(n, fromKeyboard) {
-    selected = n;
-    rail.innerHTML = railHTML(n);
-    rail.classList.add("is-filled");
-    refresh();
-    rail.querySelectorAll("[data-goto]").forEach((b) => {
-      b.addEventListener("click", () => {
-        const t = byId.get(b.dataset.goto);
+  // The relationship view: the meetings that tie two entities together.
+  function relationshipHTML(edge) {
+    const a = edge.source;
+    const b = edge.target;
+    const mtgs = edge.meetings || [];
+    const rows = mtgs
+      .map(
+        (m) =>
+          `<li class="gr-mt">
+             <span class="gr-mt__date mono">${esc(m.label)}</span>
+             <span class="gr-mt__sub">${esc(m.sub)}</span>
+             <span class="gr-mt__note">${esc(m.note)}</span>
+           </li>`
+      )
+      .join("");
+    const n = mtgs.length;
+    const body = n
+      ? `<div class="gr-block">
+           <h3 class="gr-block__title">${n} shared meeting${n === 1 ? "" : "s"}</h3>
+           <ul class="gr-mts">${rows}</ul>
+         </div>`
+      : `<p class="gr-sub">${esc(edge.label || "Connected")}.</p>`;
+    return `
+      <div class="gr-head gr-head--rel">
+        <span class="gr-type">Relationship</span>
+        <h2 class="gr-rel">
+          <span class="gr-rel__a">${esc(a.label)}</span>
+          <span class="gr-rel__x" aria-hidden="true">⇄</span>
+          <span class="gr-rel__b">${esc(b.label)}</span>
+        </h2>
+      </div>
+      ${body}
+      <div class="gr-rel__actions">
+        <button type="button" class="gr-pill" data-goto="${esc(a.id)}">Open ${esc(a.label)}</button>
+        <button type="button" class="gr-pill" data-goto="${esc(b.id)}">Open ${esc(b.label)}</button>
+      </div>
+    `;
+  }
+
+  // Wire the rail's buttons after each (re)render: data-goto selects a node,
+  // data-conn opens the relationship if it has meetings, else navigates.
+  function wireRailButtons() {
+    rail.querySelectorAll("[data-goto]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const t = byId.get(btn.dataset.goto);
         if (t) {
-          select(t, false);
+          select(t, true);
           centerOn(t);
           t.el.focus();
         }
       });
     });
+    rail.querySelectorAll("[data-conn]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const neighbor = byId.get(btn.dataset.conn);
+        if (!neighbor || !selected) return;
+        const edge = edgeBetween(selected, neighbor);
+        if (edge && edge.meetings && edge.meetings.length) {
+          selectEdge(edge);
+        } else {
+          select(neighbor, true);
+          centerOn(neighbor);
+          neighbor.el.focus();
+        }
+      });
+    });
+  }
+
+  function select(n, fromKeyboard) {
+    selected = n;
+    selectedEdge = null;
+    rail.innerHTML = railHTML(n);
+    rail.classList.add("is-filled");
+    refresh();
+    wireRailButtons();
     if (fromKeyboard) {
       const h = rail.querySelector(".gr-name");
       if (h) h.setAttribute("tabindex", "-1");
     }
+  }
+
+  function selectEdge(edge) {
+    selected = null;
+    selectedEdge = edge;
+    rail.innerHTML = relationshipHTML(edge);
+    rail.classList.add("is-filled");
+    refresh();
+    wireRailButtons();
   }
 
   function centerOn(n) {

@@ -314,6 +314,65 @@
 .gl-empty { margin-top: var(--s-6); font-family: var(--font-mono); font-size: var(--t-sm); color: var(--ink-2); }
 .gl-empty[hidden] { display: none; }
 
+/* ============================================================== CLICKABLE EDGES */
+/* the thin visible line never grabs the pointer; the fat transparent twin does */
+.g-edge, .g-edgelabel { pointer-events: none; }
+.g-edge-hit {
+  stroke: transparent; stroke-width: 16; fill: none;
+  pointer-events: stroke; cursor: pointer;
+}
+.g-edge-hit.is-filtered { display: none; }
+
+/* ============================================================== RELATIONSHIP RAIL */
+.gr-head--rel .gr-type { color: var(--accent-ink); }
+.gr-rel {
+  margin-top: var(--s-2); display: flex; flex-direction: column; gap: var(--s-1);
+  font-size: var(--t-md); font-weight: 700; color: var(--ink); line-height: 1.25;
+}
+.gr-rel__x { color: var(--accent); font-weight: 400; font-family: var(--font-mono); }
+.gr-rel__a, .gr-rel__b { text-wrap: balance; }
+
+.gr-mts { list-style: none; padding: 0; }
+.gr-mt { display: block; padding: var(--s-2) 0; border-bottom: 1px solid var(--line); }
+.gr-mt:last-child { border-bottom: 0; }
+.gr-mt__date { color: var(--accent-ink); font-size: var(--t-sm); font-variant-numeric: tabular-nums; }
+.gr-mt__sub { color: var(--ink-2); font-size: var(--t-sm); margin-left: var(--s-2); }
+.gr-mt__note {
+  display: block; margin-top: 2px; font-family: var(--font-mono);
+  font-size: var(--t-2xs); color: var(--ink-3);
+  text-transform: uppercase; letter-spacing: 0.03em;
+}
+
+.gr-rel__actions { display: flex; flex-wrap: wrap; gap: var(--s-2); margin-top: var(--s-5); }
+.gr-pill {
+  flex: 1 1 8rem; background: var(--bg-2); border: 1px solid var(--line);
+  color: var(--ink-2); border-radius: var(--r-md); padding: var(--s-2) var(--s-3);
+  font-size: var(--t-sm); cursor: pointer; text-align: center;
+  transition: color var(--dur-fast) var(--ease-out),
+              border-color var(--dur-fast) var(--ease-out),
+              background var(--dur-fast) var(--ease-out);
+}
+.gr-pill:hover { color: var(--accent-ink); border-color: var(--accent-dim); background: var(--bg-3); }
+
+.gr-conn { gap: var(--s-2); }
+.gr-conn__go { margin-left: auto; color: var(--accent-ink); }
+
+/* ============================================================== FALLBACK EDGE ROWS */
+.gl-edges { display: flex; flex-direction: column; gap: 0; }
+.gl-edges > li {
+  display: flex; flex-direction: column; align-items: stretch; gap: var(--s-2);
+  padding: var(--s-3) var(--s-2); border-bottom: 1px solid var(--line);
+}
+.gl-edge__head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--s-2); }
+.gl-edge__meetings { list-style: none; padding-left: var(--s-4); display: flex; flex-direction: column; gap: 2px; }
+.gl-edge__meetings li {
+  display: block; border: 0; padding: 0; font-size: var(--t-sm); color: var(--ink-2);
+}
+.gl-edge__meetings .gl-mt__note {
+  font-family: var(--font-mono); font-size: var(--t-2xs); color: var(--ink-3);
+  text-transform: uppercase; letter-spacing: 0.03em; margin-left: var(--s-2);
+}
+
 /* ============================================================== REDUCED MOTION */
 @media (prefers-reduced-motion: reduce) {
   .gnode, .gnode__shape, .gnode__label, .g-edge { transition: none; }

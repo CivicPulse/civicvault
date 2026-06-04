@@ -2,8 +2,9 @@
 
 The load-bearing guarantee is the review gate: Person and Organization are
 Reviewable, so only reviewed=True entities — and reviewed facts — may appear in
-the public graph. These tests pin that, plus the basic node/edge shape and the
-provenance link on a meeting's documents.
+the public graph. These tests pin that, plus the topology: people link directly
+to a body (not via meeting nodes), and the meetings ride along as the edge's
+payload.
 """
 
 import datetime
@@ -60,8 +61,23 @@ def seeded(db):
     shown = Person.objects.create(full_name="Henry Ficklin", slug="henry", reviewed=True)
     hidden = Person.objects.create(full_name="Jane Doe", slug="jane", reviewed=False)
 
-    # Reviewed facts tie the reviewed person to the meeting.
-    Appearance.objects.create(person=shown, meeting=meeting, reviewed=True)
+    # A second meeting of the same body, so the two ties must collapse into one
+    # person<->body edge carrying both meetings.
+    meeting2 = Meeting.objects.create(
+        body=body,
+        jurisdiction=jur,
+        date=datetime.date(2025, 2, 20),
+        kind=Meeting.Kind.COMMITTEE,
+        slug="m2",
+    )
+
+    # Reviewed facts tie the reviewed person to both meetings of the body.
+    Appearance.objects.create(
+        person=shown, meeting=meeting, reviewed=True, role=Appearance.Role.MEMBER
+    )
+    Appearance.objects.create(
+        person=shown, meeting=meeting2, reviewed=True, role=Appearance.Role.MEMBER
+    )
     Vote.objects.create(person=shown, agenda_item=item, value=Vote.Value.YEA, reviewed=True)
     # An unreviewed vote for the hidden person — must not leak an edge.
     Vote.objects.create(person=hidden, agenda_item=item, value=Vote.Value.NAY, reviewed=False)
@@ -72,7 +88,14 @@ def seeded(db):
         access_level=Document.AccessLevel.PUBLIC,
         source_url="https://example.org/budget.pdf",
     )
-    return {"jur": jur, "body": body, "meeting": meeting, "shown": shown, "hidden": hidden}
+    return {
+        "jur": jur,
+        "body": body,
+        "meeting": meeting,
+        "meeting2": meeting2,
+        "shown": shown,
+        "hidden": hidden,
+    }
 
 
 @pytest.mark.django_db
@@ -82,7 +105,15 @@ def test_graph_renders_and_embeds_payload(client, seeded):
     ids = {n["id"] for n in data["nodes"]}
     assert f"jurisdiction-{seeded['jur'].pk}" in ids
     assert f"organization-{seeded['body'].pk}" in ids
-    assert f"meeting-{seeded['meeting'].pk}" in ids
+
+
+@pytest.mark.django_db
+def test_meetings_are_not_nodes(client, seeded):
+    """Meetings are evidence on the person<->body edge, not graph nodes."""
+    _resp, data = _graph_payload(client)
+    ids = {n["id"] for n in data["nodes"]}
+    assert not any(i.startswith("meeting-") for i in ids)
+    assert "meeting" not in {n["type"] for n in data["nodes"]}
 
 
 @pytest.mark.django_db
@@ -114,22 +145,32 @@ def test_no_edge_from_unreviewed_vote(client, seeded):
 
 
 @pytest.mark.django_db
-def test_reviewed_person_meeting_edge_exists(client, seeded):
+def test_person_links_directly_to_body_with_collapsed_meetings(client, seeded):
+    """One person<->body edge per pair, carrying every shared meeting as payload."""
     _resp, data = _graph_payload(client)
     person_id = f"person-{seeded['shown'].pk}"
-    meeting_id = f"meeting-{seeded['meeting'].pk}"
-    pairs = {(e["source"], e["target"]) for e in data["edges"]}
-    assert (person_id, meeting_id) in pairs
+    org_id = f"organization-{seeded['body'].pk}"
+    ties = [e for e in data["edges"] if {e["source"], e["target"]} == {person_id, org_id}]
+    assert len(ties) == 1, "the two meeting ties must collapse into a single edge"
+    edge = ties[0]
+    assert edge["kind"] == "participates"
+    assert len(edge["meetings"]) == 2
+    # newest meeting first (Apr 17 before Feb 20)
+    assert edge["meetings"][0]["label"].startswith("Apr")
+    # the board meeting where the person voted carries that in its note
+    assert any("voted" in m["note"] for m in edge["meetings"])
 
 
 @pytest.mark.django_db
-def test_meeting_node_carries_document_source_link(client, seeded):
+def test_person_node_has_no_meeting_edges(client, seeded):
+    """A person's only edges are to bodies, never to meetings."""
     _resp, data = _graph_payload(client)
-    meeting = next(
-        n for n in data["nodes"] if n["id"] == f"meeting-{seeded['meeting'].pk}"
-    )
-    assert meeting["docs"], "meeting node should surface its documents"
-    assert any("/source/" in d["href"] for d in meeting["docs"])
+    person_id = f"person-{seeded['shown'].pk}"
+    for e in data["edges"]:
+        for end in (e["source"], e["target"]):
+            if end == person_id:
+                other = e["target"] if e["source"] == person_id else e["source"]
+                assert other.startswith("organization-")
 
 
 @pytest.mark.django_db
@@ -159,6 +200,6 @@ def test_list_edges_carry_endpoint_types_for_filtering(client, seeded):
     edges in the List view exactly as in the graph."""
     body = client.get("/graph/").content.decode()
     assert "data-edge" in body
-    # the person->meeting tie should expose both endpoint types
+    # the person->body tie should expose both endpoint types
     assert 'data-source-type="person"' in body
-    assert 'data-target-type="meeting"' in body
+    assert 'data-target-type="organization"' in body

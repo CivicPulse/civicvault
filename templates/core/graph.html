@@ -2,7 +2,7 @@
 {% load static %}
 
 {% block title %}Relationship graph — CivicVault{% endblock %}
-{% block description %}The public record as a graph: jurisdictions, bodies, meetings, and the people who appear and vote, with every entity one step from its source.{% endblock %}
+{% block description %}The public record as a graph: people linked to the government bodies they take part in. Select a person and a body to see every meeting between them.{% endblock %}
 
 {% block head_extra %}
   <link rel="stylesheet" href="{% static 'core/css/graph.css' %}">
@@ -17,8 +17,9 @@
       <p class="hero__kicker"><span aria-hidden="true">◆</span> Relationship index</p>
       <h1 class="graph-head__title">The record, traced</h1>
       <p class="graph-head__lede">
-        Every body, meeting, and reviewed person in the archive, drawn as the connections
-        between them. Select a node to open its file; each one is a step from its source.
+        Every reviewed person linked to the government body they take part in. Select a
+        person and a body, or click the line between them, to read every meeting that ties
+        them together.
       </p>
     </div>
 
@@ -67,7 +68,7 @@
       </svg>
       <p class="graph-hint" data-graph-hint>
         <span class="mono">drag</span> to pan · <span class="mono">scroll</span> to zoom ·
-        <span class="mono">click</span> a node for its file
+        <span class="mono">click</span> a node, or a link for shared meetings
       </p>
       <button type="button" class="graph-reset" data-graph-reset>Reset view</button>
 
@@ -80,7 +81,8 @@
     <aside class="graph-rail" data-graph-rail aria-live="polite" aria-label="Selected entity">
       <div class="graph-rail__empty" data-graph-empty>
         <p class="graph-rail__hint">No entity selected.</p>
-        <p class="graph-rail__sub">Pick a node to read its facts and follow it to the source record.</p>
+        <p class="graph-rail__sub">Pick a node to read its facts, or select a person and a body
+          (or the line between them) to list every meeting they share.</p>
       </div>
     </aside>
   </section>
@@ -145,9 +147,20 @@
     <ul class="gl-edges">
       {% for e in fallback_edges %}
       <li data-edge data-source-type="{{ e.source_type }}" data-target-type="{{ e.target_type }}">
-        <span class="gl-edge__from">{{ e.from }}</span>
-        <span class="gl-edge__rel mono">{{ e.rel }}</span>
-        <span class="gl-edge__to">{{ e.to }}</span></li>
+        <div class="gl-edge__head">
+          <span class="gl-edge__from">{{ e.from }}</span>
+          <span class="gl-edge__rel mono">{{ e.rel }}</span>
+          <span class="gl-edge__to">{{ e.to }}</span>
+        </div>
+        {% if e.meetings %}
+        <ul class="gl-edge__meetings">
+          {% for mt in e.meetings %}
+          <li><span class="mono">{{ mt.label }}</span> · {{ mt.sub }}
+            <span class="gl-mt__note">{{ mt.note }}</span></li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+      </li>
       {% endfor %}
     </ul>
   </section>
