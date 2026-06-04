@@ -107,6 +107,18 @@ def _parse_roster(body: list[str]) -> list[ParsedPerson]:
     return roster
 
 
+def _resolve_apposition_name(raw: str) -> str:
+    """From an invocation 'given by X' string, return the first comma-segment that
+    normalizes to a name-shaped value, else "". Recovers 'Juawn Jackson' from
+    'Board member, Dr. Juawn Jackson'; keeps 'Kenneth Moye' from 'Reverend Kenneth
+    Moye, <church>'; returns "" when no segment is a name."""
+    for seg in raw.split(","):
+        name = normalize_name(seg)
+        if looks_like_name(name):
+            return name
+    return ""
+
+
 def _parse_appearances(body: list[str]) -> list[ParsedAppearance]:
     appearances: list[ParsedAppearance] = []
     section = ""
@@ -122,12 +134,14 @@ def _parse_appearances(body: list[str]) -> list[ParsedAppearance]:
         inv = _INVOCATION.search(s)
         if inv:
             raw = html.unescape(inv["name"].strip())
-            appearances.append(
-                ParsedAppearance(
-                    person=ParsedPerson(full_name=normalize_name(raw), raw_name=raw),
-                    role="invocation",
+            name = _resolve_apposition_name(raw)
+            if name:
+                appearances.append(
+                    ParsedAppearance(
+                        person=ParsedPerson(full_name=name, raw_name=raw),
+                        role="invocation",
+                    )
                 )
-            )
 
         # Pledge leader: a #### sub-item under PLEDGE OF ALLEGIANCE, but only when the
         # header is a plain name — award-title headers ("Little Miss and Mr. … 2024:

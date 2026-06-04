@@ -187,3 +187,32 @@ def test_plain_name_pledge_is_captured():
     pledges = [a for a in parsed.appearances if a.role == "pledge"]
     assert len(pledges) == 1
     assert pledges[0].person.full_name == "Madison Pritchard"
+
+
+def test_invocation_apposition_recovers_real_name():
+    text = _minutes(
+        "### IV. INVOCATION\n\nThe invocation was given by Board member, Dr. Juawn Jackson.\n"
+    )
+    parsed = parse_minutes_md(text)
+    inv = [a for a in parsed.appearances if a.role == "invocation"]
+    assert len(inv) == 1
+    assert inv[0].person.full_name == "Juawn Jackson"
+
+
+def test_invocation_keeps_name_before_affiliation():
+    church = "Washington Avenue Presbyterian Church"
+    text = _minutes(
+        f"### IV. INVOCATION\n\nThe invocation was given by Reverend Kenneth Moye, {church}.\n"
+    )
+    parsed = parse_minutes_md(text)
+    inv = [a for a in parsed.appearances if a.role == "invocation"]
+    assert len(inv) == 1
+    assert inv[0].person.full_name == "Kenneth Moye"
+
+
+def test_invocation_all_prose_is_skipped():
+    text = _minutes(
+        "### IV. INVOCATION\n\nThe invocation was given by a member of the community.\n"
+    )
+    parsed = parse_minutes_md(text)
+    assert [a for a in parsed.appearances if a.role == "invocation"] == []
