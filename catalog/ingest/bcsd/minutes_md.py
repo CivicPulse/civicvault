@@ -9,7 +9,7 @@ from catalog.ingest.ir import ParsedAppearance, ParsedMotion, ParsedPerson, Pars
 from catalog.ingest.names import normalize_name, split_name_and_role
 
 _CODE = re.compile(r"\b([A-Z]{2,4}-\d+)\b")
-_ITEM_HEADER = re.compile(r"^####\s+(?:[ivxlc]+|[a-z]|\d+)\.\s+(?P<rest>.+?)\s*$")
+_ITEM_HEADER = re.compile(r"^#{4,}\s+(?:[ivxlc]+|[a-z]|\d+)\.\s+(?P<rest>.+?)\s*$")
 _SECTION_HEADER = re.compile(r"^###\s+(?P<rest>.+?)\s*$")
 _INVOCATION = re.compile(r"invocation was given by\s+(?P<name>.+?)\.?\s*$", re.IGNORECASE)
 

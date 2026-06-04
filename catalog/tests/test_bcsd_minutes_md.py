@@ -62,3 +62,25 @@ def test_board_visitor_and_pledge_appearances():
     assert "Nikolai Connor Floore" in pledges[0].person.raw_name
     invos = [a for a in parsed.appearances if a.role == "invocation"]
     assert invos[0].person.full_name == "Arizona Watkins"
+
+
+def test_personnel_five_hash_subitems_separate_roll_calls():
+    parsed = parse_minutes_md(fixture_text("personnel", "minutes.md"))
+
+    ps1 = parsed.outcomes["PS-1"]
+    ps2 = parsed.outcomes["PS-2"]
+    assert len(ps1.votes) == 5
+    assert len(ps2.votes) == 5
+    assert all(v.value == "yea" for v in ps1.votes)
+
+    # The four-hash Executive Session item keeps only its two un-rolled motions;
+    # the PS roll calls must NOT have been absorbed into it.
+    exec_item = parsed.outcomes["Executive Session for Personnel Matters"]
+    assert len(exec_item.votes) == 0
+    assert len(exec_item.motions) == 2
+    assert exec_item.outcome_status == "unanimous"
+
+    # PS-1 and PS-2 each carry their own single roll call (no duplicate voter).
+    for code in ("PS-1", "PS-2"):
+        names = [v.person.full_name for v in parsed.outcomes[code].votes]
+        assert len(names) == len(set(names)), f"duplicate voter in {code}"
