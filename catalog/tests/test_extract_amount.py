@@ -29,10 +29,12 @@ def test_annual_cost_not_to_exceed():
 
 
 def test_aggregate_amount():
-    amt, _ = extract_amount(
+    amt, phrase = extract_amount(
         "Approved services in an aggregate amount not to exceed $1,190,822.00 for FY 2021-2022."
     )
     assert amt == Decimal("1190822.00")
+    # The cue anchors on "aggregate amount", so the leading "in an" is not part of the phrase.
+    assert phrase == "aggregate amount not to exceed $1,190,822.00"
 
 
 def test_headline_figure_wins_over_parenthetical_breakdown():
