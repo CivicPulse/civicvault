@@ -84,3 +84,28 @@ def test_personnel_five_hash_subitems_separate_roll_calls():
     for code in ("PS-1", "PS-2"):
         names = [v.person.full_name for v in parsed.outcomes[code].votes]
         assert len(names) == len(set(names)), f"duplicate voter in {code}"
+
+
+def test_personnel_six_hash_escaped_ordinal_appointments_separate():
+    parsed = parse_minutes_md(fixture_text("personnel", "minutes.md"))
+
+    director = parsed.outcomes["Director of Research"]
+    asst = parsed.outcomes["Assistant Principal Southfield"]
+    assert len(director.votes) == 5
+    assert all(v.value == "yea" for v in director.votes)
+
+    # The abstention on the second appointment must survive as its own roll call —
+    # this per-decision difference is the signal the coarse parse destroyed.
+    assert len(asst.votes) == 5
+    assert sum(1 for v in asst.votes if v.value == "abstain") == 1
+    abstainer = next(v for v in asst.votes if v.value == "abstain")
+    assert abstainer.person.full_name == "Eve Evans"
+
+    # PS-3's own block is now empty (its roll calls moved to the appointments).
+    assert len(parsed.outcomes["PS-3"].votes) == 0
+
+    # Global invariant — now satisfiable: NO agenda item contains the same voter
+    # twice anywhere in the fixture.
+    for oc in parsed.outcomes.values():
+        names = [v.person.full_name for v in oc.votes]
+        assert len(names) == len(set(names)), f"duplicate voter in {oc.code or oc.title!r}"
