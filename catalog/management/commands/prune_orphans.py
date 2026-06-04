@@ -30,6 +30,8 @@ def _related_ids(content_type):
 def orphan_persons():
     person_ct = ContentType.objects.get_for_model(Person)
     in_rel = _related_ids(person_ct)
+    # Four .exists() queries per person — O(n) at catalog scale; acceptable today.
+    # Switch to .annotate(Count(...)) if Person rows grow beyond ~10k.
     return [
         p
         for p in Person.objects.all()
@@ -65,10 +67,11 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         persons = orphan_persons()
         orgs = orphan_vendor_orgs()
+        mode = "DELETING" if options["apply"] else "WOULD DELETE"
         for p in persons:
-            self.stdout.write(f"  person  {p.full_name!r}")
+            self.stdout.write(f"  [{mode}] person  {p.full_name!r}")
         for o in orgs:
-            self.stdout.write(f"  vendor  {o.name!r}")
+            self.stdout.write(f"  [{mode}] vendor  {o.name!r}")
         if options["apply"]:
             for p in persons:
                 p.delete()

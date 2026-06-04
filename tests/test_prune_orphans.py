@@ -5,14 +5,18 @@ entities are never deleted."""
 import datetime
 
 import pytest
+from django.contrib.contenttypes.models import ContentType
 from django.core.management import call_command
 
 from catalog.models import (
+    AgendaItem,
     Appearance,
     Jurisdiction,
     Meeting,
     Organization,
     Person,
+    Relationship,
+    Vote,
 )
 
 
@@ -33,6 +37,7 @@ def mixed(db):
     )
     return {
         "body": body,
+        "meeting": meeting,
         "connected": connected,
         "orphan_person": orphan_person,
         "orphan_vendor": orphan_vendor,
@@ -53,3 +58,28 @@ def test_apply_deletes_only_orphans(mixed):
     assert not Organization.objects.filter(pk=mixed["orphan_vendor"].pk).exists()
     assert Person.objects.filter(pk=mixed["connected"].pk).exists()
     assert Organization.objects.filter(pk=mixed["body"].pk).exists()
+
+
+@pytest.mark.django_db
+def test_person_connected_only_by_vote_is_preserved(mixed):
+    item = AgendaItem.objects.create(meeting=mixed["meeting"], order=1, title="Item")
+    voter = Person.objects.create(full_name="Voter Only", slug="voter-only")
+    Vote.objects.create(person=voter, agenda_item=item, value=Vote.Value.YEA)
+    call_command("prune_orphans", apply=True)
+    assert Person.objects.filter(pk=voter.pk).exists()
+
+
+@pytest.mark.django_db
+def test_person_referenced_as_relationship_object_is_preserved(mixed):
+    person_ct = ContentType.objects.get_for_model(Person)
+    org_ct = ContentType.objects.get_for_model(Organization)
+    obj_person = Person.objects.create(full_name="Object Person", slug="object-person")
+    Relationship.objects.create(
+        subject_ct=org_ct,
+        subject_id=mixed["body"].pk,
+        object_ct=person_ct,
+        object_id=obj_person.pk,
+        predicate=Relationship.Predicate.BOARD_MEMBER_OF,
+    )
+    call_command("prune_orphans", apply=True)
+    assert Person.objects.filter(pk=obj_person.pk).exists()
