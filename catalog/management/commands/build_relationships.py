@@ -136,7 +136,9 @@ class Command(BaseCommand):
 
         # ---- contracts_with --------------------------------------------------
         contracts = 0
-        for item in AgendaItem.objects.select_related("meeting", "meeting__body"):
+        for item in AgendaItem.objects.select_related("meeting", "meeting__body").order_by(
+            "meeting__date", "order"
+        ):
             name = vendor_name(item.title)
             body = item.meeting.body
             if not name or not (body and body.reviewed):

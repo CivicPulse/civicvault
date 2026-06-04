@@ -132,6 +132,10 @@ def test_vendor_variants_collapse_to_one_node_with_aka(corpus):
     org = school_city.first()
     assert org.name == "School City"
     assert "School City Assessment Platform" in org.aka
+    # Re-running must not duplicate aka entries (idempotency guard).
+    call_command("build_relationships", review=True)
+    org.refresh_from_db()
+    assert org.aka.count("School City Assessment Platform") == 1
 
 
 @pytest.mark.django_db
