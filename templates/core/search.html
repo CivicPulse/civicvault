@@ -88,8 +88,9 @@
       {% for d in doc_hits %}
       <article class="hit">
         <div class="hit__top">
-          {% if d.source_url %}
-            <a class="hit__title" href="{{ d.source_url }}" rel="noopener">{{ d.title }}</a>
+          {% if d.has_source %}
+            <a class="hit__title" href="{% url 'core:document_source' d.id %}"
+               target="_blank" rel="noopener">{{ d.title }}</a>
           {% else %}
             <span class="hit__title">{{ d.title }}</span>
           {% endif %}
@@ -99,7 +100,12 @@
         <div class="hit__prov">
           <span>SOURCE</span>
           {% if d.meeting_date %}<span class="mono">{{ d.meeting_date|date:'Y-m-d' }} · {{ d.meeting_kind }}</span>{% endif %}
-          {% if d.source_url %}<a href="{{ d.source_url }}" rel="noopener">view original ↗</a>{% endif %}
+          {% if d.has_source %}
+            <a href="{% url 'core:document_source' d.id %}" target="_blank" rel="noopener"
+               aria-label="Open source document for {{ d.title }} in a new tab">open document ↗</a>
+          {% else %}
+            <span>not yet retrievable</span>
+          {% endif %}
         </div>
       </article>
       {% endfor %}

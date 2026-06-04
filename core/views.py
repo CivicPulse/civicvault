@@ -13,9 +13,10 @@ layered on top of the same UI.
 
 import re
 
+from django.core.files.storage import default_storage
 from django.db.models import Count, Q
-from django.http import JsonResponse
-from django.shortcuts import render
+from django.http import Http404, JsonResponse
+from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.html import escape
 from django.utils.safestring import mark_safe
 
@@ -180,11 +181,17 @@ def search(request):
     doc_total = doc_qs.count()
     doc_hits = []
     for d in doc_qs.select_related("meeting").order_by("-meeting__date", "title")[:DOC_LIMIT]:
+        # A public document is linkable if it has either an original URL or a
+        # stored file; the source route (below) resolves whichever exists.
+        has_source = d.access_level == Document.AccessLevel.PUBLIC and bool(
+            d.source_url or d.r2_key
+        )
         doc_hits.append(
             {
+                "id": d.pk,
                 "title": d.title,
                 "kind": d.get_kind_display(),
-                "source_url": d.source_url,
+                "has_source": has_source,
                 "snippet": _snippet(d.text, q),
                 "meeting_date": d.meeting.date if d.meeting_id else None,
                 "meeting_kind": d.meeting.get_kind_display() if d.meeting_id else "",
@@ -237,6 +244,22 @@ def search(request):
         }
     )
     return render(request, "core/search.html", context)
+
+
+def document_source(request, pk):
+    """Redirect to a document's source: its original URL, else its stored file.
+
+    This is the stable, shareable provenance link for a document. It hides where
+    the file actually lives (an external page now, an R2 object today, a signed
+    URL tomorrow) behind one address, and only ever resolves PUBLIC documents so
+    restricted records can't be reached by guessing an id.
+    """
+    doc = get_object_or_404(Document, pk=pk, access_level=Document.AccessLevel.PUBLIC)
+    if doc.source_url:
+        return redirect(doc.source_url)
+    if doc.r2_key:
+        return redirect(default_storage.url(doc.r2_key))
+    raise Http404("This document has no retrievable source.")
 
 
 def health(request):
