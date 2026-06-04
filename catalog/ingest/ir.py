@@ -70,6 +70,34 @@ class ParsedDocument:
 
 
 @dataclass(frozen=True)
+class ParsedTranscriptSegment:
+    """A timed transcript line. `start` is the absolute offset in the recording
+    (= the YouTube ?t= value), powering transcript→video deep links (brief §7)."""
+
+    start: float
+    end: float
+    text: str
+
+
+@dataclass(frozen=True)
+class ParsedRecording:
+    """A recording's sidecar set (brief §5.4–5.6), framework-neutral."""
+
+    youtube_id: str
+    title: str
+    recorded_on: datetime.date | None  # parsed from title (§6.2); preferred anchor
+    upload_date: datetime.date | None  # info.json upload_date (§5.5); fallback anchor
+    duration_seconds: int | None
+    source_url: str
+    r2_key: str  # "BCSD/..." (§1c convention); "" when not under a BCSD_* dir
+    is_combined: bool  # title mentions both "Committee" and "Board"
+    is_meeting: bool = True  # title denotes a meeting (vs a non-meeting video like a ceremony)
+    segments: tuple[ParsedTranscriptSegment, ...] = ()
+    transcript_origin: str = "youtube_captions"  # "youtube_captions" | "whisper" | ""
+    source_path: str = ""  # the .info.json path
+
+
+@dataclass(frozen=True)
 class ParsedMeeting:
     date: datetime.date
     start_time: datetime.time | None

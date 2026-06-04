@@ -13,15 +13,20 @@ review begins, this wipe strategy must be revisited (out of scope for slice 1b).
 from django.db import IntegrityError, transaction
 from django.utils.text import slugify
 
-from catalog.ingest.ir import ParsedMeeting, ParsedPerson
+from catalog.ingest.ir import ParsedMeeting, ParsedPerson, ParsedRecording
+from catalog.ingest.match import CoverageDecision
 from catalog.models import (
     AgendaItem,
     Appearance,
     Citation,
     Document,
+    MediaAsset,
     Meeting,
+    MeetingCoverage,
     Motion,
     Person,
+    Transcript,
+    TranscriptSegment,
     Vote,
 )
 
@@ -249,3 +254,69 @@ def load_meeting(parsed: ParsedMeeting, *, source, jurisdiction, body) -> Meetin
         )
 
     return meeting
+
+
+_TRANSCRIPT_ORIGIN = {
+    "youtube_captions": Transcript.Origin.YOUTUBE_CAPTIONS,
+    "whisper": Transcript.Origin.WHISPER,
+}
+
+
+@transaction.atomic
+def load_recording(
+    parsed: ParsedRecording, decisions: list[CoverageDecision], *, source
+) -> MediaAsset:
+    """Persist a recording as evidence: MediaAsset + Transcript + TranscriptSegments
+    + MeetingCoverage. No Citations (recordings assert no facts). Idempotent on
+    youtube_id: re-ingest wipes the asset's transcripts (cascades segments) and its
+    coverage rows, then recreates them."""
+    if not parsed.youtube_id:
+        raise ValueError("load_recording requires a non-empty youtube_id.")
+    media, _ = MediaAsset.objects.update_or_create(
+        youtube_id=parsed.youtube_id,
+        defaults={
+            "kind": MediaAsset.Kind.VIDEO,
+            "r2_key": parsed.r2_key,
+            "source_url": parsed.source_url,
+            "recorded_on": parsed.recorded_on,
+            "upload_date": parsed.upload_date,
+            "duration_seconds": parsed.duration_seconds,
+            "source": source,
+        },
+    )
+
+    # Idempotency: wipe transcripts (cascades segments) + coverage before recreating.
+    media.transcripts.all().delete()
+    media.coverages.all().delete()
+
+    if parsed.segments:
+        if parsed.transcript_origin not in _TRANSCRIPT_ORIGIN:
+            raise ValueError(f"Unknown transcript origin: {parsed.transcript_origin!r}")
+        transcript = Transcript.objects.create(
+            media=media,
+            language="en",
+            origin=_TRANSCRIPT_ORIGIN[parsed.transcript_origin],
+        )
+        TranscriptSegment.objects.bulk_create(
+            [
+                TranscriptSegment(transcript=transcript, start=s.start, end=s.end, text=s.text)
+                for s in parsed.segments
+            ]
+        )
+
+    for d in decisions:
+        meeting = Meeting.objects.filter(pk=d.meeting_id).first()
+        if meeting is None:
+            raise ValueError(
+                f"Coverage decision references no Meeting (pk={d.meeting_id}) for "
+                f"recording {parsed.youtube_id!r}."
+            )
+        MeetingCoverage.objects.create(
+            media=media,
+            meeting=meeting,
+            start_offset=d.start_offset,
+            end_offset=d.end_offset,
+            split_confirmed=d.split_confirmed,
+        )
+
+    return media

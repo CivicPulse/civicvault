@@ -8,6 +8,7 @@ dependencies = [
     "django-environ>=0.13.0",
     "django-storages>=1.14.6",
     "djangorestframework>=3.17.1",
+    "faster-whisper>=1.2.1",
     "psycopg[binary]>=3.3.4",
     "pypdf>=6.12.2",
 ]

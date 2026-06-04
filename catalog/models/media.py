@@ -38,7 +38,12 @@ class MediaAsset(TimeStamped):
         constraints = [
             models.UniqueConstraint(
                 fields=["r2_key"], condition=~models.Q(r2_key=""), name="uniq_media_r2_key"
-            )
+            ),
+            models.UniqueConstraint(
+                fields=["youtube_id"],
+                condition=~models.Q(youtube_id=""),
+                name="uniq_media_youtube_id",
+            ),
         ]
 
     def __str__(self):
