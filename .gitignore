@@ -225,3 +225,6 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 .claude/scheduled_tasks.lock
+
+# Playwright MCP verification artifacts
+.playwright-mcp/

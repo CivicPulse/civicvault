@@ -1,0 +1,53 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}CivicVault{% endblock %}</title>
+  <meta name="description" content="{% block description %}A public, source-linked knowledge base for local government. Search meetings, documents, and transcripts; every fact traces back to its source.{% endblock %}">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#0d1014">
+  <link rel="icon" href="{% static 'core/favicon.svg' %}" type="image/svg+xml">
+
+  {# Fonts: grotesk for prose, mono for data; display=swap keeps text visible during load. #}
+  {# Follow-up: self-host these to drop the third-party request (privacy for a civic tool). #}
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
+  <link rel="stylesheet" href="{% static 'core/css/civicvault.css' %}">
+  {% block head_extra %}{% endblock %}
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="masthead">
+    <div class="shell masthead__row">
+      <a class="wordmark" href="{% url 'core:home' %}" aria-label="CivicVault home">
+        <span>Civic</span><span class="wordmark__vault">Vault</span><span class="wordmark__cursor" aria-hidden="true"></span>
+      </a>
+      <span class="status" role="status" aria-label="Archive index is online">
+        <span class="status__dot" aria-hidden="true"></span>
+        Index&nbsp;Online
+      </span>
+    </div>
+  </header>
+
+  <main id="main">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer>
+    <div class="shell foot">
+      <span>CivicVault &mdash; the public record, searchable and cited.</span>
+      <span class="foot__tags">
+        <span>Public&nbsp;record</span>
+        <span>Open&nbsp;source</span>
+        <span>No&nbsp;account&nbsp;required</span>
+      </span>
+    </div>
+  </footer>
+  {% block body_extra %}{% endblock %}
+</body>
+</html>

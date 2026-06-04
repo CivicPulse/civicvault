@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}{% if q %}{{ q }} — CivicVault search{% else %}Search — CivicVault{% endif %}{% endblock %}
+
+{% block content %}
+
+{# ============================================ SEARCH BAR (prefilled) #}
+<section class="hero">
+  <div class="shell results__bar">
+    <form class="search" action="{% url 'core:search' %}" method="get" role="search"
+          aria-label="Search the public record">
+      <div class="search__field">
+        <span class="search__prompt" aria-hidden="true">&rsaquo;</span>
+        <input class="search__input" type="search" name="q" value="{{ q }}" autofocus
+               autocomplete="off" enterkeyhint="search" spellcheck="false"
+               placeholder="Search meetings, documents, and transcripts…"
+               aria-label="Search query">
+        <button class="search__submit" type="submit">
+          {% include "core/_icon_search.html" %}
+          Search
+        </button>
+      </div>
+    </form>
+
+    {% if q %}
+    <p class="results__summary" role="status">
+      {% if total %}
+        <b>{{ total|intcomma }}</b> result{{ total|pluralize }} for <span class="results__q">&ldquo;{{ q }}&rdquo;</span>
+        — {{ doc_total|intcomma }} document{{ doc_total|pluralize }}, {{ segment_total|intcomma }} transcript moment{{ segment_total|pluralize }}.
+      {% else %}
+        No matches for <span class="results__q">&ldquo;{{ q }}&rdquo;</span>.
+      {% endif %}
+    </p>
+    {% endif %}
+  </div>
+</section>
+
+<div class="shell results">
+
+  {# ---------- empty query: invite a search ---------- #}
+  {% if not q %}
+  <div class="state">
+    {% include "core/_icon_search.html" %}
+    <h1 class="state__title">Search the public record</h1>
+    <p class="state__body">
+      Look for a person, a vendor, a dollar amount, or a phrase. Results span documents
+      and meeting-video transcripts, each linked back to its source.
+    </p>
+    {% if suggestions %}
+    <div class="suggests" style="justify-content:center; margin-top: var(--s-5);">
+      <span class="suggests__label">Try:</span>
+      {% for term in suggestions %}
+        <a class="chip" href="{% url 'core:search' %}?q={{ term|urlencode }}">{{ term }}</a>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+
+  {# ---------- query, but nothing matched ---------- #}
+  {% elif not total %}
+  <div class="state">
+    {% include "core/_icon_search.html" %}
+    <h1 class="state__title">Nothing matched that query</h1>
+    <p class="state__body">
+      No documents or transcripts contain &ldquo;{{ q }}&rdquo;. Try a shorter phrase, a single
+      name, or one of these:
+    </p>
+    {% if suggestions %}
+    <div class="suggests" style="justify-content:center; margin-top: var(--s-5);">
+      <span class="suggests__label">Try:</span>
+      {% for term in suggestions %}
+        <a class="chip" href="{% url 'core:search' %}?q={{ term|urlencode }}">{{ term }}</a>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+
+  {# ---------- results ---------- #}
+  {% else %}
+
+    {% if doc_hits %}
+    <section class="group" aria-label="Document results">
+      <div class="group__head">
+        <h2 class="group__title">Documents</h2>
+        <span class="group__count">showing {{ doc_hits|length }} of {{ doc_total|intcomma }}</span>
+      </div>
+      {% for d in doc_hits %}
+      <article class="hit">
+        <div class="hit__top">
+          {% if d.source_url %}
+            <a class="hit__title" href="{{ d.source_url }}" rel="noopener">{{ d.title }}</a>
+          {% else %}
+            <span class="hit__title">{{ d.title }}</span>
+          {% endif %}
+          <span class="tag">{{ d.kind }}</span>
+        </div>
+        {% if d.snippet %}<p class="hit__snippet">{{ d.snippet }}</p>{% endif %}
+        <div class="hit__prov">
+          <span>SOURCE</span>
+          {% if d.meeting_date %}<span class="mono">{{ d.meeting_date|date:'Y-m-d' }} · {{ d.meeting_kind }}</span>{% endif %}
+          {% if d.source_url %}<a href="{{ d.source_url }}" rel="noopener">view original ↗</a>{% endif %}
+        </div>
+      </article>
+      {% endfor %}
+    </section>
+    {% endif %}
+
+    {% if segment_hits %}
+    <section class="group" aria-label="Transcript results">
+      <div class="group__head">
+        <h2 class="group__title">Transcript moments</h2>
+        <span class="group__count">showing {{ segment_hits|length }} of {{ segment_total|intcomma }}</span>
+      </div>
+      {% for s in segment_hits %}
+      <article class="hit">
+        <div class="hit__top">
+          <span class="hit__title">{{ s.context }}</span>
+        </div>
+        {% if s.snippet %}<p class="hit__snippet">“{{ s.snippet }}”</p>{% endif %}
+        <div class="hit__prov">
+          <span>SOURCE</span>
+          {% if s.video_url %}
+            <a class="timecode" href="{{ s.video_url }}" rel="noopener" aria-label="Jump to {{ s.timecode }} in the meeting video">
+              ▶ {{ s.timecode }}
+            </a>
+          {% else %}
+            <span class="timecode">{{ s.timecode }}</span>
+          {% endif %}
+          {% if s.meeting_date %}<span class="mono">{{ s.meeting_date|date:'Y-m-d' }}</span>{% endif %}
+        </div>
+      </article>
+      {% endfor %}
+    </section>
+    {% endif %}
+
+  {% endif %}
+</div>
+
+{% endblock %}

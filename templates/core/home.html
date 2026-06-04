@@ -1,40 +1,130 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>CivicVault</title>
-    <style>
-        :root { color-scheme: light dark; }
-        body {
-            margin: 0;
-            min-height: 100vh;
-            display: grid;
-            place-items: center;
-            font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-            background: #0f172a;
-            color: #e2e8f0;
-        }
-        main { text-align: center; padding: 2rem; max-width: 40rem; }
-        h1 { font-size: clamp(2rem, 6vw, 3.5rem); margin: 0 0 0.5rem; letter-spacing: -0.02em; }
-        p { font-size: 1.125rem; line-height: 1.6; color: #94a3b8; margin: 0.5rem 0; }
-        .badge {
-            display: inline-block;
-            margin-top: 1.5rem;
-            padding: 0.35rem 0.85rem;
-            border: 1px solid #334155;
-            border-radius: 999px;
-            font-size: 0.8rem;
-            color: #cbd5e1;
-        }
-    </style>
-</head>
-<body>
-    <main>
-        <h1>CivicVault</h1>
-        <p>A public, source-linked knowledge base for local government.</p>
-        <p>Hello, world — the skeleton is running.</p>
-        <span class="badge">Django {{ request.META.SERVER_SOFTWARE|default:"dev" }}</span>
-    </main>
-</body>
-</html>
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}CivicVault — search the public record{% endblock %}
+
+{% block content %}
+
+{# ============================================ HERO + COMMAND SEARCH #}
+<section class="hero">
+  {% include "core/_constellation.html" %}
+  <div class="shell hero__inner">
+    <p class="hero__kicker">
+      <span aria-hidden="true">&rsaquo;_</span> local government, on the record
+    </p>
+    <h1 class="hero__title">Every decision your local government makes, searchable and traced to its source.</h1>
+    <p class="hero__lede">
+      Meetings, documents, contracts, votes, and hours of transcribed video, in one place.
+      Search the full archive and follow any fact back to the exact page or second it came from.
+    </p>
+
+    <form class="search" action="{% url 'core:search' %}" method="get" role="search"
+          aria-label="Search the public record">
+      <div class="search__field">
+        <span class="search__prompt" aria-hidden="true">&rsaquo;</span>
+        <input class="search__input" type="search" name="q" autocomplete="off"
+               enterkeyhint="search" spellcheck="false"
+               placeholder="Search meetings, documents, and transcripts…"
+               aria-label="Search query">
+        <button class="search__submit" type="submit">
+          {% include "core/_icon_search.html" %}
+          Search
+        </button>
+      </div>
+    </form>
+
+    {% if suggestions %}
+    <div class="suggests">
+      <span class="suggests__label">Try:</span>
+      {% for term in suggestions %}
+        <a class="chip" href="{% url 'core:search' %}?q={{ term|urlencode }}">{{ term }}</a>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+</section>
+
+{# ============================================ LIVE CORPUS READOUT #}
+<section class="readout" aria-label="What is currently indexed">
+  <div class="shell readout__inner">
+    <span class="readout__head">
+      <span class="status__dot" aria-hidden="true"></span> Index manifest
+    </span>
+    {% for s in stats %}
+      <span class="readout__sep" aria-hidden="true">/</span>
+      <span class="stat"><span class="stat__n tnum">{{ s.value|intcomma }}</span> <span class="stat__l">{{ s.label }}</span></span>
+    {% endfor %}
+  </div>
+</section>
+
+{# ============================================ ENTRY POINTS #}
+<section class="shell entry" aria-label="Browse the archive">
+  <div class="entry__grid">
+
+    {# --- Agencies (jurisdictions) --- #}
+    <div class="panel">
+      <div class="panel__head">
+        <h2 class="panel__title">Agencies on file</h2>
+        <span class="panel__meta">{{ jurisdictions|length }} indexed</span>
+      </div>
+      {% for j in jurisdictions %}
+      <div class="agency">
+        <span class="agency__mark" aria-hidden="true">{{ j.initials }}</span>
+        <div>
+          <div class="agency__name">{{ j.name }}</div>
+          <div class="agency__kind">{{ j.kind_label }}</div>
+          <div class="agency__counts">
+            <span><b class="mono tnum">{{ j.meetings|intcomma }}</b> meetings</span>
+            <span><b class="mono tnum">{{ j.documents|intcomma }}</b> documents</span>
+          </div>
+        </div>
+      </div>
+      {% empty %}
+      <p class="hero__lede">No agencies indexed yet.</p>
+      {% endfor %}
+      <p class="panel__meta lede-block">
+        More agencies are added by onboarding their records, not by changing the core.
+      </p>
+    </div>
+
+    {# --- Recent meetings (informational data rows, not links) --- #}
+    <div class="panel">
+      <div class="panel__head">
+        <h2 class="panel__title">Latest meetings indexed</h2>
+        <span class="panel__meta">most recent first</span>
+      </div>
+      {% if recent_meetings %}
+      <ul class="meetings">
+        {% for m in recent_meetings %}
+        <li class="meeting-row">
+          <time class="meeting-row__date" datetime="{{ m.date|date:'Y-m-d' }}">{{ m.date|date:'Y-m-d' }}</time>
+          <span class="meeting-row__title">
+            <span class="tag">{{ m.kind }}</span>
+            <span class="meeting-row__body">{{ m.body }}</span>
+          </span>
+          <span class="meeting-row__counts">
+            {{ m.documents|intcomma }} docs{% if m.has_video %} · video{% endif %}
+          </span>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="hero__lede">No meetings indexed yet.</p>
+      {% endif %}
+    </div>
+
+  </div>
+</section>
+
+{# ============================================ PROVENANCE CREED #}
+<section class="creed">
+  <div class="shell">
+    <p class="creed__line">Nothing here is asserted without a citation. <b>Every fact links back to the document, page, or second it came from.</b></p>
+    <p class="creed__sub">
+      For an accountability tool, provenance is the product. Search a name, a dollar amount, or a vendor,
+      and trace what you find straight to the minutes that recorded it or the moment in the meeting video where it was said.
+    </p>
+  </div>
+</section>
+
+{% endblock %}

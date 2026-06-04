@@ -1,0 +1,65 @@
+{# Signature motif: the relationship graph as restrained atmosphere. #}
+{# Decorative only (aria-hidden); the real interactive graph is a later surface. #}
+{# Nodes breathe and a few data pulses travel the edges; both stop under reduced-motion. #}
+<svg class="hero__constellation" viewBox="0 0 800 500" preserveAspectRatio="xMidYMid slice"
+     aria-hidden="true" focusable="false">
+  <defs>
+    <filter id="cv-glow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="6" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  {# edges #}
+  <g stroke="oklch(40% 0.022 240)" stroke-width="1" fill="none" opacity="0.65">
+    <line class="edge" x1="520" y1="212" x2="300" y2="300"/>
+    <line class="edge" x1="520" y1="212" x2="612" y2="330"/>
+    <line class="edge" x1="520" y1="212" x2="420" y2="140"/>
+    <line class="edge" x1="520" y1="212" x2="648" y2="150"/>
+    <line class="edge" x1="520" y1="212" x2="704" y2="240"/>
+    <line class="edge" x1="520" y1="212" x2="560" y2="118"/>
+    <line class="edge" x1="520" y1="212" x2="470" y2="298"/>
+    <line class="edge" x1="300" y1="300" x2="360" y2="205"/>
+    <line class="edge" x1="300" y1="300" x2="232" y2="232"/>
+    <line class="edge" x1="300" y1="300" x2="250" y2="380"/>
+    <line class="edge" x1="300" y1="300" x2="402" y2="402"/>
+    <line class="edge" x1="300" y1="300" x2="470" y2="298"/>
+    <line class="edge" x1="612" y1="330" x2="704" y2="240"/>
+    <line class="edge" x1="612" y1="330" x2="684" y2="400"/>
+    <line class="edge" x1="612" y1="330" x2="720" y2="332"/>
+    <line class="edge" x1="612" y1="330" x2="556" y2="402"/>
+    <line class="edge" x1="232" y1="232" x2="182" y2="322"/>
+    <line class="edge" x1="420" y1="140" x2="560" y2="118"/>
+  </g>
+
+  {# leaf nodes #}
+  <g fill="oklch(72% 0.06 215)">
+    <circle class="node node--pulse"    cx="420" cy="140" r="3"/>
+    <circle class="node node--pulse n2"  cx="648" cy="150" r="2.5"/>
+    <circle class="node node--pulse n3"  cx="704" cy="240" r="3"/>
+    <circle class="node node--pulse"     cx="560" cy="118" r="2"/>
+    <circle class="node node--pulse n2"  cx="470" cy="298" r="2.5"/>
+    <circle class="node node--pulse n3"  cx="360" cy="205" r="2.5"/>
+    <circle class="node node--pulse"     cx="232" cy="232" r="2"/>
+    <circle class="node node--pulse n2"  cx="250" cy="380" r="2.5"/>
+    <circle class="node node--pulse n3"  cx="402" cy="402" r="2"/>
+    <circle class="node node--pulse"     cx="684" cy="400" r="2"/>
+    <circle class="node node--pulse n2"  cx="720" cy="332" r="2.5"/>
+    <circle class="node node--pulse n3"  cx="182" cy="322" r="2"/>
+    <circle class="node node--pulse"     cx="556" cy="402" r="2.5"/>
+  </g>
+
+  {# hub nodes (signal cyan, glowing) #}
+  <g fill="oklch(80% 0.125 215)" filter="url(#cv-glow)">
+    <circle class="node node--pulse"    cx="520" cy="212" r="5.5"/>
+    <circle class="node node--pulse n2"  cx="300" cy="300" r="4.5"/>
+    <circle class="node node--pulse n3"  cx="612" cy="330" r="4"/>
+  </g>
+
+  {# traveling data pulses along three edges #}
+  <g fill="oklch(88% 0.10 215)">
+    <circle class="pulse-travel"    r="2.4" style="offset-path: path('M300 300 L520 212');"/>
+    <circle class="pulse-travel p2" r="2.4" style="offset-path: path('M520 212 L612 330');"/>
+    <circle class="pulse-travel p3" r="2.0" style="offset-path: path('M612 330 L684 400');"/>
+  </g>
+</svg>
