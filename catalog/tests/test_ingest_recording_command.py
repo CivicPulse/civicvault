@@ -94,6 +94,31 @@ def test_command_non_meeting_video_is_unlinked_even_near_meeting(boe, tmp_path):
 
 
 @pytest.mark.django_db
+def test_command_falls_back_to_upload_date_when_title_has_no_date(boe, tmp_path):
+    # Title has no parseable date → recorded_on is None → the matcher anchor falls
+    # back to upload_date (20230120), whose ±3-day window still covers the meeting.
+    jur, body = boe
+    meeting = Meeting.objects.create(
+        body=body,
+        jurisdiction=jur,
+        date=datetime.date(2023, 1, 19),
+        start_time=datetime.time(18, 30),
+        kind=Meeting.Kind.BOARD,
+        slug="b",
+    )
+    info = tmp_path / "nodate_NODATEvid1_.info.json"
+    info.write_text(
+        '{"id": "NODATEvid1", "title": "Bibb County Board Meeting", '
+        '"duration": 60, "upload_date": "20230120", "webpage_url": "https://youtu.be/NODATEvid1"}'
+    )
+    call_command("ingest_recording", str(info))
+    media = MediaAsset.objects.get(youtube_id="NODATEvid1")
+    assert media.recorded_on is None  # no title date
+    covs = MeetingCoverage.objects.filter(media=media)
+    assert covs.count() == 1 and covs.first().meeting == meeting
+
+
+@pytest.mark.django_db
 def test_command_whisper_used_when_no_vtt(boe, tmp_path, monkeypatch):
     # Stage an info.json with no sibling .vtt.
     info = tmp_path / "novtt_WHISPERvid1_.info.json"
