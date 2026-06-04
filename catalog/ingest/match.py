@@ -47,7 +47,7 @@ def match_recording(parsed: ParsedRecording, candidate_meetings) -> list[Coverag
     meetings = sorted(candidate_meetings, key=_sort_key)
 
     if not meetings:
-        return []  # unlinked MediaAsset (e.g. a non-meeting video)
+        return []  # unlinked MediaAsset: a meeting recording with no DB match on its date
 
     if len(meetings) == 1:
         return [CoverageDecision(meeting_id=meetings[0].pk, start_offset=0.0, end_offset=None)]
