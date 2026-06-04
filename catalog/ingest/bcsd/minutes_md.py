@@ -107,19 +107,83 @@ def _parse_roster(body: list[str]) -> list[ParsedPerson]:
     return roster
 
 
-def _resolve_apposition_name(raw: str) -> str:
-    """From an invocation 'given by X' string, return the first comma-segment that
-    normalizes to a name-shaped value, else "". Recovers 'Juawn Jackson' from
-    'Board member, Dr. Juawn Jackson'; keeps 'Kenneth Moye' from 'Reverend Kenneth
-    Moye, <church>'; returns "" when no segment is a name.
+# Leading role/title tokens (lowercase, punctuation-stripped) to drop before
+# validating an invocation segment as a name. Honorifics + religious + position
+# roles seen in the BCSD corpus; a segment that is ENTIRELY these strips to empty
+# and is skipped, so a role descriptor ("Lead Pastor", "Board President") is never
+# emitted as a person.
+_ROLE_TOKENS = {
+    "mr",
+    "mrs",
+    "ms",
+    "dr",
+    "miss",
+    "rev",
+    "reverend",
+    "reverand",
+    "pastor",
+    "minister",
+    "father",
+    "deacon",
+    "bishop",
+    "elder",
+    "rabbi",
+    "president",
+    "vice",
+    "board",
+    "lead",
+    "senior",
+    "superintendent",
+    "attorney",
+    "chair",
+    "chairman",
+    "chairwoman",
+    "chairperson",
+    "commissioner",
+    "director",
+    "manager",
+    "general",
+    "officer",
+    "mayor",
+    "judge",
+    "coach",
+    "councilman",
+    "councilwoman",
+    "councilmember",
+    "member",
+    "associate",
+    "executive",
+    "interim",
+    "assistant",
+    "deputy",
+    "the",
+    "of",
+    "a",
+    "an",
+}
 
-    Assumes the real name, when it precedes the comma ("Name, Affiliation"), is the
-    first segment and wins — a title-case affiliation appearing BEFORE the name would
-    resolve incorrectly (not seen in the BCSD corpus)."""
+
+def _strip_leading_roles(text: str) -> str:
+    """Drop leading role/title tokens; return the remaining candidate name."""
+    toks = text.split()
+    i = 0
+    while i < len(toks) and re.sub(r"[^a-z]", "", toks[i].lower()) in _ROLE_TOKENS:
+        i += 1
+    return " ".join(toks[i:]).strip(" .,")
+
+
+def _resolve_apposition_name(raw: str) -> str:
+    """Return the first comma-segment that, after stripping leading role/title tokens,
+    is a name-shaped value, else "". Recovers the real person from role-first
+    appositions ('Lead Pastor, Harold Clark' -> 'Harold Clark'; 'Board member Dr.
+    Juawn Jackson' -> 'Juawn Jackson') and keeps simple cases ('Reverend Kenneth
+    Moye, <church>' -> 'Kenneth Moye'). Never emits a pure role descriptor as a
+    person; an unresolvable 'Title Name of Church' (no comma) yields "" (dropped) —
+    invocation-givers are ceremonial, and a false person is worse than a missing one."""
     for seg in raw.split(","):
-        name = normalize_name(seg)
-        if looks_like_name(name):
-            return name
+        cand = _strip_leading_roles(normalize_name(seg))
+        if looks_like_name(cand):
+            return cand
     return ""
 
 

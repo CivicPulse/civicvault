@@ -189,30 +189,33 @@ def test_plain_name_pledge_is_captured():
     assert pledges[0].person.full_name == "Madison Pritchard"
 
 
-def test_invocation_apposition_recovers_real_name():
-    text = _minutes(
-        "### IV. INVOCATION\n\nThe invocation was given by Board member, Dr. Juawn Jackson.\n"
-    )
+@pytest.mark.parametrize(
+    "tail, expected",
+    [
+        ("Board member, Dr. Juawn Jackson", "Juawn Jackson"),
+        ("Board member Dr. Juawn Jackson", "Juawn Jackson"),
+        ("Lead Pastor, Harold Clark, Abundant Life Church", "Harold Clark"),
+        ("Board President, Ms. Lester", "Lester"),
+        ("Minister Calla Busby, House of Hope Macon", "Calla Busby"),
+        ("Father Bill McIntyre, OFM, pastor of St. Joseph", "Bill McIntyre"),
+        ("Reverend Kenneth Moye, Washington Avenue Presbyterian Church", "Kenneth Moye"),
+        ("Frank Tompkins, president of the Bibb Retired Educators Association", "Frank Tompkins"),
+        ("Barney Hester", "Barney Hester"),
+    ],
+)
+def test_invocation_resolves_real_archive_names(tail, expected):
+    text = _minutes(f"### IV. INVOCATION\n\nThe invocation was given by {tail}.\n")
     parsed = parse_minutes_md(text)
     inv = [a for a in parsed.appearances if a.role == "invocation"]
     assert len(inv) == 1
-    assert inv[0].person.full_name == "Juawn Jackson"
+    assert inv[0].person.full_name == expected
 
 
-def test_invocation_keeps_name_before_affiliation():
-    church = "Washington Avenue Presbyterian Church"
-    text = _minutes(
-        f"### IV. INVOCATION\n\nThe invocation was given by Reverend Kenneth Moye, {church}.\n"
-    )
-    parsed = parse_minutes_md(text)
-    inv = [a for a in parsed.appearances if a.role == "invocation"]
-    assert len(inv) == 1
-    assert inv[0].person.full_name == "Kenneth Moye"
-
-
-def test_invocation_all_prose_is_skipped():
-    text = _minutes(
-        "### IV. INVOCATION\n\nThe invocation was given by a member of the community.\n"
-    )
+@pytest.mark.parametrize(
+    "tail",
+    ["a member of the community", "Pastor Bo Turner of Real Life Church"],
+)
+def test_invocation_drops_pure_role_or_unresolvable(tail):
+    text = _minutes(f"### IV. INVOCATION\n\nThe invocation was given by {tail}.\n")
     parsed = parse_minutes_md(text)
     assert [a for a in parsed.appearances if a.role == "invocation"] == []
