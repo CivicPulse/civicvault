@@ -111,7 +111,11 @@ def _resolve_apposition_name(raw: str) -> str:
     """From an invocation 'given by X' string, return the first comma-segment that
     normalizes to a name-shaped value, else "". Recovers 'Juawn Jackson' from
     'Board member, Dr. Juawn Jackson'; keeps 'Kenneth Moye' from 'Reverend Kenneth
-    Moye, <church>'; returns "" when no segment is a name."""
+    Moye, <church>'; returns "" when no segment is a name.
+
+    Assumes the real name, when it precedes the comma ("Name, Affiliation"), is the
+    first segment and wins — a title-case affiliation appearing BEFORE the name would
+    resolve incorrectly (not seen in the BCSD corpus)."""
     for seg in raw.split(","):
         name = normalize_name(seg)
         if looks_like_name(name):
