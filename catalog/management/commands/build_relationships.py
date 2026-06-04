@@ -15,7 +15,6 @@ unless --review is passed (dev convenience to make them visible in the graph).
 """
 
 import re
-from decimal import Decimal, InvalidOperation
 
 from django.contrib.contenttypes.models import ContentType
 from django.core.management.base import BaseCommand
@@ -46,7 +45,6 @@ VENDOR_PATTERNS = [
     re.compile(r"^(.+?)\s*[-–]\s*FY\s*\d*\s*Renewal$", re.I),
     re.compile(r"^(.+?)\s*[-–]\s*Contract$", re.I),
 ]
-MONEY = re.compile(r"\$\s*([\d,]+(?:\.\d{2})?)")
 
 
 def vendor_name(title):
@@ -61,19 +59,6 @@ def vendor_name(title):
             if 2 < len(name) < 60 and not name.lower().startswith(("fy ", "fy2")):
                 return name
     return None
-
-
-def largest_amount(text):
-    """The biggest dollar figure in some text (the contract value), or None."""
-    best = None
-    for raw in MONEY.findall(text or ""):
-        try:
-            val = Decimal(raw.replace(",", ""))
-        except InvalidOperation:
-            continue
-        if best is None or val > best:
-            best = val
-    return best
 
 
 def meeting_doc(meeting):
@@ -169,7 +154,7 @@ class Command(BaseCommand):
                 object_ct=org_ct,
                 object_id=vendor.pk,
                 predicate=Relationship.Predicate.CONTRACTS_WITH,
-                amount=largest_amount(item.outcome_text),
+                amount=item.amount,
                 occurred_on=item.meeting.date,
                 note=item.title,
                 source=src,
