@@ -12,7 +12,7 @@ resources:
   - ingressroute.yaml
 
 # CI overrides the tag per build:
-#   kustomize edit set image ghcr.io/kerryhatcher/civicvault=ghcr.io/kerryhatcher/civicvault:sha-<sha>
+#   kustomize edit set image ghcr.io/civicpulse/civicvault=ghcr.io/civicpulse/civicvault:sha-<sha>
 images:
-  - name: ghcr.io/kerryhatcher/civicvault
+  - name: ghcr.io/civicpulse/civicvault
     newTag: latest

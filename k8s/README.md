@@ -13,7 +13,7 @@ The manifests here cover the in-cluster resources. Three things are applied
 ## Prerequisites (verified)
 
 - `kubectl` context `do-atl1-hatchcluster`, `doctl` authenticated.
-- Image published to `ghcr.io/kerryhatcher/civicvault:sha-<sha>` (see CI).
+- Image published to `ghcr.io/civicpulse/civicvault:sha-<sha>` (see CI).
 
 ## 1. Provision the database (managed Postgres `db-postgresql-atl1-25905`)
 
@@ -51,7 +51,7 @@ kubectl create secret generic civicvault-secrets -n civicvault \
 
 ```bash
 # From repo root. Set the image tag CI built, then apply.
-( cd k8s && kustomize edit set image ghcr.io/kerryhatcher/civicvault=ghcr.io/kerryhatcher/civicvault:sha-<sha> )
+( cd k8s && kustomize edit set image ghcr.io/civicpulse/civicvault=ghcr.io/civicpulse/civicvault:sha-<sha> )
 kubectl apply -k k8s/
 kubectl rollout status deploy/civicvault -n civicvault
 ```

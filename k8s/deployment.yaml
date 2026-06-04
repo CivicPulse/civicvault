@@ -32,7 +32,7 @@ spec:
       # replicas > 1, move this to a pre-deploy Job to avoid concurrent migrate.)
       initContainers:
         - name: migrate
-          image: ghcr.io/kerryhatcher/civicvault:latest
+          image: ghcr.io/civicpulse/civicvault:latest
           imagePullPolicy: IfNotPresent
           command: ["python", "manage.py", "migrate", "--noinput"]
           envFrom:
@@ -54,7 +54,7 @@ spec:
               mountPath: /tmp
       containers:
         - name: civicvault
-          image: ghcr.io/kerryhatcher/civicvault:latest
+          image: ghcr.io/civicpulse/civicvault:latest
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
