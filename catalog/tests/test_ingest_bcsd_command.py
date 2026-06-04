@@ -132,3 +132,36 @@ def test_command_ingests_attachment_documents(tmp_path):
         .filter(pk=extra.pk)
         .exists()
     )
+
+
+@pytest.mark.django_db
+def test_command_ingests_nested_personnel_without_duplicate_votes(tmp_path):
+    folder_name = "2025-06-19_1600_committee-meeting_mid-999001"
+    dst = tmp_path / "BCSD_BOE_MEETINGS" / "2025" / "06" / folder_name
+    dst.mkdir(parents=True)
+    for fname in ("event.md", "minutes.md"):
+        shutil.copy(FIXTURES_DIR / "personnel" / fname, dst / fname)
+
+    # Must not raise the duplicate-vote IntegrityError.
+    call_command("ingest_bcsd", str(dst))
+
+    meeting = Meeting.objects.get(source_meeting_id="999001")
+
+    ps1 = AgendaItem.objects.get(meeting=meeting, code="PS-1")
+    ps2 = AgendaItem.objects.get(meeting=meeting, code="PS-2")
+    assert Vote.objects.filter(agenda_item=ps1).count() == 5
+    assert Vote.objects.filter(agenda_item=ps2).count() == 5
+
+    # Executive Session keeps its motions and carries NO votes.
+    exec_item = AgendaItem.objects.get(meeting=meeting, title="Executive Session for Personnel Matters")
+    assert Vote.objects.filter(agenda_item=exec_item).count() == 0
+    assert Motion.objects.filter(agenda_item=exec_item).count() == 2
+
+    # Appointment roll calls attach to the appointment items; the abstention survives.
+    director = AgendaItem.objects.get(meeting=meeting, title="Director of Research")
+    asst = AgendaItem.objects.get(meeting=meeting, title="Assistant Principal Southfield")
+    assert Vote.objects.filter(agenda_item=director).count() == 5
+    assert Vote.objects.filter(agenda_item=asst, value=Vote.Value.ABSTAIN).count() == 1
+
+    # 5 + 5 + 5 + 5 = 20 votes total; none lost, none duplicated.
+    assert Vote.objects.filter(agenda_item__meeting=meeting).count() == 20
