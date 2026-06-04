@@ -148,3 +148,17 @@ def test_collapsed_vendor_has_one_contract_edge_per_item(corpus):
         predicate=Relationship.Predicate.CONTRACTS_WITH, object_id=org.pk
     )
     assert edges.count() == 2
+
+
+@pytest.mark.django_db
+def test_suggest_merges_reports_unaliased_lookalikes(corpus, capsys):
+    # Add two look-alike vendor items that are NOT in the alias map.
+    meeting = corpus["meeting"]
+    AgendaItem.objects.create(meeting=meeting, order=5, title="Renewal of Renaissance Star")
+    AgendaItem.objects.create(meeting=meeting, order=6, title="Renewal of Renaissance Star 360")
+    call_command("build_relationships", review=True, suggest_merges=True)
+    out = capsys.readouterr().out
+    assert "Renaissance Star" in out
+    assert "Renaissance Star 360" in out
+    # An already-aliased pair (School City) must NOT appear as a suggestion.
+    assert "School City Assessment Platform" not in out.split("suggest", 1)[-1]

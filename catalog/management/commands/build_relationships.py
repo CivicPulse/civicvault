@@ -22,7 +22,7 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.utils.text import slugify
 
-from catalog.ingest.orgs import canonicalize_org_name, resolve_key
+from catalog.ingest.orgs import canonicalize_org_name, propose_collapses, resolve_key
 from catalog.models import (
     AgendaItem,
     Appearance,
@@ -81,6 +81,12 @@ class Command(BaseCommand):
             "--review",
             action="store_true",
             help="Mark derived rows (and vendor orgs) reviewed=True so they appear in the graph.",
+        )
+        parser.add_argument(
+            "--suggest-merges",
+            action="store_true",
+            help="Print conservative vendor-merge proposals (look-alike names not yet "
+            "unified by the alias map). Suggestions only — nothing is changed.",
         )
 
     @transaction.atomic
@@ -179,3 +185,16 @@ class Command(BaseCommand):
                 f"relationships ({state})."
             )
         )
+        if options["suggest_merges"]:
+            vendor_names = list(
+                Organization.objects.filter(
+                    kind=Organization.Kind.COMPANY, jurisdiction__isnull=True
+                ).values_list("name", flat=True)
+            )
+            proposals = propose_collapses(vendor_names)
+            if proposals:
+                self.stdout.write("Vendor-merge suggestions (review, then add to VENDOR_ALIASES):")
+                for a, b, score in sorted(proposals, key=lambda p: -p[2]):
+                    self.stdout.write(f"  [{score:.2f}] {a!r}  ≈  {b!r}")
+            else:
+                self.stdout.write("No vendor-merge suggestions.")
