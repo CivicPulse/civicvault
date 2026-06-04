@@ -501,10 +501,18 @@ def graph(request):
 
     legend = [{"key": k, **v} for k, v in GRAPH_TYPES.items()]
 
-    # Readable relationships for the no-JS fallback ("X held by Y").
+    # Readable relationships for the no-JS fallback ("X held by Y"). Endpoint
+    # ids + types ride along so the List view filters edges like the graph does.
     id_label = {n["id"]: n["label"] for n in nodes}
+    id_type = {n["id"]: n["type"] for n in nodes}
     fallback_edges = [
-        {"from": id_label[e["source"]], "rel": e["label"], "to": id_label[e["target"]]}
+        {
+            "from": id_label[e["source"]],
+            "rel": e["label"],
+            "to": id_label[e["target"]],
+            "source_type": id_type[e["source"]],
+            "target_type": id_type[e["target"]],
+        }
         for e in edges
     ]
 

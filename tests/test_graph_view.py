@@ -138,3 +138,27 @@ def test_empty_corpus_renders_without_error(client, db):
     assert resp.status_code == 200
     assert data["nodes"] == []
     assert data["edges"] == []
+
+
+@pytest.mark.django_db
+def test_search_and_filter_controls_render(client, seeded):
+    """The toolbar ships the search input + clear control and the list carries
+    the data hooks the client JS filters on."""
+    body = client.get("/graph/").content.decode()
+    assert 'id="graph-q"' in body
+    assert "data-graph-clear" in body
+    assert "data-graph-empty-search" in body
+    assert "data-list-empty" in body
+    assert "data-node-id=" in body
+    assert "data-group" in body
+
+
+@pytest.mark.django_db
+def test_list_edges_carry_endpoint_types_for_filtering(client, seeded):
+    """Each relationship row exposes both endpoint types so type filters can hide
+    edges in the List view exactly as in the graph."""
+    body = client.get("/graph/").content.decode()
+    assert "data-edge" in body
+    # the person->meeting tie should expose both endpoint types
+    assert 'data-source-type="person"' in body
+    assert 'data-target-type="meeting"' in body

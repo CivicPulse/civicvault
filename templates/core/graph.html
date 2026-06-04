@@ -23,6 +23,17 @@
     </div>
 
     <div class="graph-toolbar" role="region" aria-label="Graph controls">
+      <div class="graph-search">
+        <span class="graph-search__prompt mono" aria-hidden="true">&rsaquo;</span>
+        <input class="graph-search__input" type="search" id="graph-q"
+               placeholder="Find a person, body, or meeting…" autocomplete="off"
+               spellcheck="false" enterkeyhint="search"
+               aria-label="Find an entity in the graph" aria-describedby="graph-q-count">
+        <span class="graph-search__count mono" id="graph-q-count" role="status" aria-live="polite"></span>
+        <button type="button" class="graph-search__clear" data-graph-clear hidden
+                aria-label="Clear search">&times;</button>
+      </div>
+
       <p class="graph-readout">
         <span class="graph-readout__n mono tnum">{{ node_count }}</span> entities
         <span class="readout__sep" aria-hidden="true">/</span>
@@ -59,6 +70,11 @@
         <span class="mono">click</span> a node for its file
       </p>
       <button type="button" class="graph-reset" data-graph-reset>Reset view</button>
+
+      <div class="graph-empty-search" data-graph-empty-search hidden role="status">
+        <p class="graph-empty-search__title">No entities match your search</p>
+        <p class="graph-empty-search__sub">Try a different name, or clear a filter above.</p>
+      </div>
     </div>
 
     <aside class="graph-rail" data-graph-rail aria-live="polite" aria-label="Selected entity">
@@ -81,7 +97,7 @@
   </p>
 
   {% for g in graph_groups %}
-  <section class="gl-group" aria-label="{{ g.meta.label }} entities">
+  <section class="gl-group" data-group aria-label="{{ g.meta.label }} entities">
     <div class="gl-group__head">
       <span class="gl-group__swatch gfilter__swatch--{{ g.meta.shape }}"
             style="--c: oklch(74% 0.135 {{ g.meta.hue }});" aria-hidden="true"></span>
@@ -90,7 +106,8 @@
     </div>
     <ul class="gl-list">
       {% for n in g.nodes %}
-      <li class="gl-item">
+      <li class="gl-item" data-node-id="{{ n.id }}" data-type="{{ n.type }}"
+          data-search="{{ n.label|lower }}">
         <div class="gl-item__head">
           <span class="gl-item__name">{{ n.label }}</span>
           {% if n.sublabel %}<span class="gl-item__sub">{{ n.sublabel }}</span>{% endif %}
@@ -120,20 +137,23 @@
   {% endfor %}
 
   {% if fallback_edges %}
-  <section class="gl-group" aria-label="Relationships">
+  <section class="gl-group" data-group aria-label="Relationships">
     <div class="gl-group__head">
       <h2 class="gl-group__title">Relationships</h2>
       <span class="gl-group__count mono">{{ fallback_edges|length }}</span>
     </div>
     <ul class="gl-edges">
       {% for e in fallback_edges %}
-      <li><span class="gl-edge__from">{{ e.from }}</span>
+      <li data-edge data-source-type="{{ e.source_type }}" data-target-type="{{ e.target_type }}">
+        <span class="gl-edge__from">{{ e.from }}</span>
         <span class="gl-edge__rel mono">{{ e.rel }}</span>
         <span class="gl-edge__to">{{ e.to }}</span></li>
       {% endfor %}
     </ul>
   </section>
   {% endif %}
+
+  <p class="gl-empty" data-list-empty hidden>No entities match your search.</p>
 </div>
 
 {{ graph_data|json_script:"graph-data" }}

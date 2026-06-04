@@ -339,22 +339,56 @@
   let selected = null;
   let hovered = null;
 
-  function setEdgeState() {
-    links.forEach((l) => {
-      const active =
-        selected && (l.source.id === selected.id || l.target.id === selected.id);
-      const dimmed = selected && !active;
-      l.el.classList.toggle("is-active", !!active);
-      l.el.classList.toggle("is-dim", !!dimmed);
-    });
+  // Interaction state shared by selection, type filters, and search. One
+  // refresh() owns every is-* class so the three inputs never stomp each other.
+  let searchQuery = "";
+  const hiddenTypes = new Set();
+  const neighborIdSet = (n) => new Set(neighbors.get(n.id).map((x) => x.node.id));
+  const nodeMatches = (n, q) => !q || n.label.toLowerCase().includes(q);
+
+  function refresh() {
+    const q = searchQuery.trim().toLowerCase();
+    const nbrs = selected ? neighborIdSet(selected) : null;
+    let visibleMatches = 0;
+
     nodes.forEach((n) => {
-      const isSel = selected && n.id === selected.id;
-      const isNbr =
-        selected && neighbors.get(selected.id).some((x) => x.node.id === n.id);
-      n.el.classList.toggle("is-selected", !!isSel);
-      n.el.classList.toggle("is-dim", !!(selected && !isSel && !isNbr));
+      const typeVis = !hiddenTypes.has(n.type);
+      const match = nodeMatches(n, q);
+      const sel = !!(selected && n.id === selected.id);
+      const nbr = !!(nbrs && nbrs.has(n.id));
+      n.el.classList.toggle("is-filtered", !typeVis);
+      // search governs dimming when active; otherwise selection does
+      let dim = false;
+      if (q) dim = typeVis && !match;
+      else if (selected) dim = !sel && !nbr;
+      n.el.classList.toggle("is-dim", dim && !sel);
+      n.el.classList.toggle("is-selected", sel);
+      n.el.classList.toggle("is-match", !!(q && match && typeVis && !sel));
+      if (typeVis && match) visibleMatches++;
     });
-    renderActiveEdgeLabels();
+
+    links.forEach((l) => {
+      const typeVis =
+        !hiddenTypes.has(l.source.type) && !hiddenTypes.has(l.target.type);
+      l.el.classList.toggle("is-filtered", !typeVis);
+      let active = false;
+      let dim = false;
+      if (q) {
+        dim = !(nodeMatches(l.source, q) && nodeMatches(l.target, q));
+      } else if (selected) {
+        active = l.source.id === selected.id || l.target.id === selected.id;
+        dim = !active;
+      }
+      l.el.classList.toggle("is-active", active);
+      l.el.classList.toggle("is-dim", dim);
+    });
+
+    // edge labels only make sense when reading one selected node, not while searching
+    if (selected && !q) renderActiveEdgeLabels();
+    else gEdgeLabels.replaceChildren();
+
+    updateSearchFeedback(q, visibleMatches);
+    refreshList(q);
   }
 
   function renderActiveEdgeLabels() {
@@ -438,7 +472,7 @@
     selected = n;
     rail.innerHTML = railHTML(n);
     rail.classList.add("is-filled");
-    setEdgeState();
+    refresh();
     rail.querySelectorAll("[data-goto]").forEach((b) => {
       b.addEventListener("click", () => {
         const t = byId.get(b.dataset.goto);
@@ -483,17 +517,90 @@
     requestAnimationFrame(step);
   }
 
-  // ---- Filters + view toggle + reset --------------------------------------
-  const hiddenTypes = new Set();
-  function applyFilters() {
-    nodes.forEach((n) => n.el.classList.toggle("is-filtered", hiddenTypes.has(n.type)));
-    links.forEach((l) =>
-      l.el.classList.toggle(
-        "is-filtered",
-        hiddenTypes.has(l.source.type) || hiddenTypes.has(l.target.type)
-      )
-    );
+  // ---- Search, list filtering, type filters, view toggle ------------------
+  const fallback = document.querySelector("[data-graph-fallback]");
+  const listEmptyEl = fallback ? fallback.querySelector("[data-list-empty]") : null;
+  const searchInput = document.getElementById("graph-q");
+  const countEl = document.getElementById("graph-q-count");
+  const clearBtn = document.querySelector("[data-graph-clear]");
+  const searchEmptyEl = stage.querySelector("[data-graph-empty-search]");
+
+  function updateSearchFeedback(q, count) {
+    if (countEl) {
+      countEl.textContent = q
+        ? count === 0
+          ? "No matches"
+          : `${count} ${count === 1 ? "match" : "matches"}`
+        : "";
+    }
+    if (clearBtn) clearBtn.hidden = !q;
+    if (searchEmptyEl) searchEmptyEl.hidden = !(q && count === 0);
   }
+
+  // Mirror the graph's filter + search onto the no-JS list so both views agree.
+  function refreshList(q) {
+    if (!fallback) return;
+    fallback.querySelectorAll("[data-node-id]").forEach((el) => {
+      const vis =
+        !hiddenTypes.has(el.dataset.type) &&
+        (!q || (el.dataset.search || "").includes(q));
+      el.classList.toggle("is-hidden", !vis);
+    });
+    fallback.querySelectorAll("[data-edge]").forEach((el) => {
+      const vis =
+        !hiddenTypes.has(el.dataset.sourceType) &&
+        !hiddenTypes.has(el.dataset.targetType) &&
+        (!q || (el.textContent || "").toLowerCase().includes(q));
+      el.classList.toggle("is-hidden", !vis);
+    });
+    fallback.querySelectorAll("[data-group]").forEach((g) => {
+      const shown = g.querySelectorAll(
+        "[data-node-id]:not(.is-hidden), [data-edge]:not(.is-hidden)"
+      ).length;
+      g.classList.toggle("is-hidden", shown === 0);
+    });
+    if (listEmptyEl) {
+      const any = fallback.querySelectorAll("[data-node-id]:not(.is-hidden)").length;
+      listEmptyEl.hidden = any > 0;
+    }
+  }
+
+  function clearSearch() {
+    if (searchInput) searchInput.value = "";
+    searchQuery = "";
+  }
+
+  if (searchInput) {
+    searchInput.addEventListener("input", () => {
+      searchQuery = searchInput.value;
+      refresh();
+    });
+    searchInput.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter") {
+        ev.preventDefault();
+        const q = searchQuery.trim().toLowerCase();
+        if (!q) return;
+        const hit = nodes.find((n) => !hiddenTypes.has(n.type) && nodeMatches(n, q));
+        if (hit) {
+          clearSearch(); // commit the jump, then reveal the node's neighborhood
+          select(hit, true);
+          centerOn(hit);
+          hit.el.focus();
+        }
+      } else if (ev.key === "Escape") {
+        clearSearch();
+        refresh();
+      }
+    });
+  }
+  if (clearBtn && searchInput) {
+    clearBtn.addEventListener("click", () => {
+      clearSearch();
+      refresh();
+      searchInput.focus();
+    });
+  }
+
   document.querySelectorAll(".gfilter").forEach((btn) => {
     btn.addEventListener("click", () => {
       const type = btn.dataset.type;
@@ -501,11 +608,10 @@
       btn.setAttribute("aria-pressed", String(!on));
       if (on) hiddenTypes.add(type);
       else hiddenTypes.delete(type);
-      applyFilters();
+      refresh();
     });
   });
 
-  const fallback = document.querySelector("[data-graph-fallback]");
   function setView(mode) {
     const graphMode = mode === "graph";
     stage.hidden = !graphMode;
@@ -516,6 +622,7 @@
       b.setAttribute("aria-pressed", String(active));
     });
     if (graphMode) fitView();
+    refresh();
   }
   document.querySelectorAll(".gview").forEach((b) => {
     b.addEventListener("click", () => setView(b.dataset.view));

@@ -35,6 +35,38 @@
 }
 .graph-readout__n { color: var(--ink); font-weight: 600; }
 
+/* ---- search field (consistent with the homepage search vocabulary) ---- */
+.graph-search {
+  flex: 1 1 15rem; max-width: 24rem;
+  display: flex; align-items: center; gap: var(--s-2);
+  background: var(--bg-2); border: 1px solid var(--line-strong);
+  border-radius: var(--r-md); padding: var(--s-1) var(--s-2) var(--s-1) var(--s-3);
+  transition: border-color var(--dur-fast) var(--ease-out),
+              box-shadow var(--dur-fast) var(--ease-out),
+              background var(--dur-fast) var(--ease-out);
+}
+.graph-search:focus-within {
+  border-color: var(--accent-dim); background: var(--bg-1);
+  box-shadow: 0 0 0 1px var(--accent-dim), 0 0 22px -8px var(--accent-glow);
+}
+.graph-search__prompt { color: var(--accent); font-weight: 700; user-select: none; }
+.graph-search__input {
+  flex: 1 1 auto; min-width: 0; border: 0; background: transparent;
+  color: var(--ink); font-size: var(--t-sm); padding-block: var(--s-1);
+}
+.graph-search__input::placeholder { color: var(--ink-3); }
+.graph-search__input:focus { outline: none; }
+/* hide the UA clear control; we render our own so it can carry an accessible name */
+.graph-search__input::-webkit-search-cancel-button { -webkit-appearance: none; }
+.graph-search__count { flex: none; font-size: var(--t-2xs); color: var(--ink-3); white-space: nowrap; }
+.graph-search__clear {
+  flex: none; background: transparent; border: 0; color: var(--ink-3);
+  cursor: pointer; font-size: var(--t-lg); line-height: 1; padding: 0 var(--s-1);
+  border-radius: var(--r-sm); transition: color var(--dur-fast) var(--ease-out);
+}
+.graph-search__clear:hover { color: var(--ink); }
+.graph-search__clear[hidden] { display: none; }
+
 .graph-filters { display: flex; flex-wrap: wrap; gap: var(--s-2); }
 .gfilter {
   display: inline-flex; align-items: center; gap: var(--s-2);
@@ -126,6 +158,17 @@
 }
 .graph-reset:hover { color: var(--accent-ink); border-color: var(--accent-dim); }
 
+/* search-yields-nothing overlay over the canvas */
+.graph-empty-search {
+  position: absolute; inset: 0; z-index: 1;
+  display: grid; place-content: center; text-align: center; padding: var(--s-5);
+  background: color-mix(in oklch, var(--bg-0) 58%, transparent);
+  -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px);
+}
+.graph-empty-search[hidden] { display: none; }
+.graph-empty-search__title { font-weight: 600; color: var(--ink); }
+.graph-empty-search__sub { margin-top: var(--s-2); font-size: var(--t-sm); color: var(--ink-2); max-width: 32ch; }
+
 /* ============================================================== NODES / EDGES */
 .g-edge {
   stroke: var(--line-strong); stroke-width: 1;
@@ -165,8 +208,16 @@
   filter: drop-shadow(0 0 9px var(--accent-glow));
 }
 .gnode.is-selected .gnode__label { fill: var(--ink); }
-.gnode.is-dim { opacity: 0.32; }
+.gnode.is-dim { opacity: 0.28; }
+.gnode.is-selected { opacity: 1; } /* selection always wins over any dim */
 .gnode.is-filtered { display: none; }
+
+/* search hit: matched nodes glow Signal Cyan while the rest dim (One Signal Rule) */
+.gnode.is-match .gnode__shape {
+  stroke: var(--accent); stroke-width: 2.2;
+  filter: drop-shadow(0 0 5px var(--accent-glow));
+}
+.gnode.is-match .gnode__label { fill: var(--ink); }
 
 /* ============================================================== DETAIL RAIL */
 .graph-rail {
@@ -257,6 +308,11 @@
 .gl-edges li { display: flex; align-items: baseline; gap: var(--s-2); padding: var(--s-2); border-bottom: 1px solid var(--line); }
 .gl-edge__from, .gl-edge__to { color: var(--ink); }
 .gl-edge__rel { color: var(--ink-3); font-size: var(--t-xs); text-transform: uppercase; letter-spacing: 0.03em; }
+
+/* hide states driven by search + type filters */
+.gl-item.is-hidden, .gl-group.is-hidden, .gl-edges li.is-hidden { display: none; }
+.gl-empty { margin-top: var(--s-6); font-family: var(--font-mono); font-size: var(--t-sm); color: var(--ink-2); }
+.gl-empty[hidden] { display: none; }
 
 /* ============================================================== REDUCED MOTION */
 @media (prefers-reduced-motion: reduce) {
