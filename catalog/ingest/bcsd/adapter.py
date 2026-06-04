@@ -145,6 +145,8 @@ def parse_meeting_folder(folder: Path) -> ParsedMeeting:
                 outcome_status=outcome.outcome_status if outcome else "none",
                 motions=outcome.motions if outcome else (),
                 votes=outcome.votes if outcome else (),
+                amount=outcome.amount if outcome else None,
+                amount_text=outcome.amount_text if outcome else "",
                 file_names=_files_for_item(event.files, ev.code, ev.title),
             )
         )

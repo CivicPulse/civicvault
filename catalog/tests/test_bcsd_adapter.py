@@ -1,5 +1,6 @@
 import datetime
 import shutil
+from decimal import Decimal
 from pathlib import Path
 
 from catalog.ingest.bcsd.adapter import _without_classifier, parse_meeting_folder
@@ -159,6 +160,17 @@ def test_join_tolerates_classifier_suffix_asymmetry(tmp_path):
     item = next(i for i in parsed.agenda_items if "Widget Purchase" in i.title)
     assert len(item.votes) == 2
     assert {v.person.full_name for v in item.votes} == {"Alice Adams", "Bob Brown"}
+
+
+def test_adapter_carries_cue_anchored_amount_through_join(tmp_path):
+    folder = _make_folder(tmp_path, "committee", "2025-04-17_1600_committee-meeting_mid-124789")
+    pm = parse_meeting_folder(folder)
+    by_code = {it.code: it for it in pm.agenda_items if it.code}
+    fss3 = by_code["FSS-3"]
+    assert fss3.amount == Decimal("5515711.09")
+    assert "not to exceed $5,515,711.09" in fss3.amount_text
+    # An item whose outcome states no contract-cued figure carries no amount.
+    assert all(it.amount is None for it in pm.agenda_items if it.code and not it.amount_text)
 
 
 def test_fallback_skips_when_two_event_items_share_stripped_title(tmp_path):
