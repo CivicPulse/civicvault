@@ -1,3 +1,5 @@
+import pytest
+
 from catalog.ingest.bcsd.minutes_md import parse_minutes_md
 from catalog.tests.fixtures import fixture_text
 
@@ -109,3 +111,33 @@ def test_personnel_six_hash_escaped_ordinal_appointments_separate():
     for oc in parsed.outcomes.values():
         names = [v.person.full_name for v in oc.votes]
         assert len(names) == len(set(names)), f"duplicate voter in {oc.code or oc.title!r}"
+
+
+def test_repeated_voter_in_one_item_raises():
+    # A single item whose block contains two roll calls naming the same person —
+    # the malformed shape the guard must catch.
+    text = """## Meeting Minutes
+
+### Attendance
+
+#### Voting Members
+
+- Ms. Alice Adams, President
+- Mr. Bob Brown, Board Member
+
+### IV. SOME COMMITTEE
+
+#### i. SC-1 Some Action
+
+_Voting results:_
+
+- Yes: Ms. Alice Adams
+- Yes: Mr. Bob Brown
+
+_Voting results:_
+
+- Yes: Ms. Alice Adams
+- Yes: Mr. Bob Brown
+"""
+    with pytest.raises(ValueError, match=r"Duplicate vote for 'Alice Adams'"):
+        parse_minutes_md(text)

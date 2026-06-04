@@ -171,6 +171,16 @@ def parse_minutes_md(text: str) -> ParsedMinutes:
         otext, motions, votes = parse_outcome_block(block_lines)
         status = _derive_status(otext, motions)
         key = code or title
+        seen_voters: set[str] = set()
+        for v in votes:
+            if v.person.full_name in seen_voters:
+                raise ValueError(
+                    f"Duplicate vote for {v.person.full_name!r} within agenda item "
+                    f"{key!r}: the minutes nest multiple roll calls under one item "
+                    f"header at a depth the parser did not separate. Fix the source "
+                    f"layout or extend _ITEM_HEADER."
+                )
+            seen_voters.add(v.person.full_name)
         outcomes[key] = ItemOutcome(
             code=code,
             title=title,
