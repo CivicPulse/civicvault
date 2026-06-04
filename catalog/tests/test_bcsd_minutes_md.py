@@ -113,6 +113,34 @@ def test_personnel_six_hash_escaped_ordinal_appointments_separate():
         assert len(names) == len(set(names)), f"duplicate voter in {oc.code or oc.title!r}"
 
 
+def _minutes(section_body: str) -> str:
+    """Wrap a minutes section so parse_minutes_md sees it as the Meeting Minutes body."""
+    return "# Doc\n\n## Meeting Minutes\n\n" + section_body
+
+
+def test_visitor_prose_is_not_captured_as_speakers():
+    text = _minutes(
+        "### VI. INVITATION TO VISITORS TO ADDRESS THE BOARD\n\n"
+        "Four people addressed the Board for comments.\n\n"
+        "They were:\n\n"
+        "Two eighth grade students from Miller Middle School congratulated their new principal.\n"
+    )
+    parsed = parse_minutes_md(text)
+    assert [a for a in parsed.appearances if a.role == "speaker"] == []
+
+
+def test_named_visitors_are_captured():
+    text = _minutes(
+        "### VI. INVITATION TO VISITORS TO ADDRESS THE BOARD\n\n"
+        "The following citizens submitted requests to address the Board:\n\n"
+        "Attorney Roy Miller\n\n"
+        "Jessican Strohmetz\n"
+    )
+    parsed = parse_minutes_md(text)
+    names = sorted(a.person.full_name for a in parsed.appearances if a.role == "speaker")
+    assert names == ["Jessican Strohmetz", "Roy Miller"]
+
+
 def test_repeated_voter_in_one_item_raises():
     # A single item whose block contains two roll calls naming the same person —
     # the malformed shape the guard must catch.

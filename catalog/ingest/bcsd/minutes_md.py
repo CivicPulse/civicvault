@@ -7,7 +7,7 @@ from decimal import Decimal, InvalidOperation
 
 from catalog.ingest.bcsd.motions import parse_outcome_block
 from catalog.ingest.ir import ParsedAppearance, ParsedMotion, ParsedPerson, ParsedVote
-from catalog.ingest.names import normalize_name, split_name_and_role
+from catalog.ingest.names import looks_like_name, normalize_name, split_name_and_role
 
 _CODE = re.compile(r"\b([A-Z]{2,4}-\d+)\b")
 _ITEM_HEADER = re.compile(r"^#{4,}\s+(?:[ivxlc]+|[a-z]|\d+)\\?\.\s+(?P<rest>.+?)\s*$")
@@ -141,17 +141,19 @@ def _parse_appearances(body: list[str]) -> list[ParsedAppearance]:
                     )
                 )
 
-        # Visitors: bare-name lines under the INVITATION TO VISITORS section.
-        # Exclude blank lines, headers, bullet points, lines starting with "The "
-        # (e.g. the introductory prose line), and markdown emphasis markers.
-        if "INVITATION TO VISITORS" in section and s and not s.startswith(("#", "-", "The ", "_")):
+        # Visitors: name-shaped lines under the INVITATION TO VISITORS section. The
+        # section is often narrated in prose ("Four people addressed the Board."), so
+        # looks_like_name() is the real filter; only structural prefixes are excluded.
+        if "INVITATION TO VISITORS" in section and s and not s.startswith(("#", "-")):
             raw = html.unescape(s)
-            appearances.append(
-                ParsedAppearance(
-                    person=ParsedPerson(full_name=normalize_name(raw), raw_name=raw),
-                    role="speaker",
+            name = normalize_name(raw)
+            if looks_like_name(name):
+                appearances.append(
+                    ParsedAppearance(
+                        person=ParsedPerson(full_name=name, raw_name=raw),
+                        role="speaker",
+                    )
                 )
-            )
 
     return appearances
 
