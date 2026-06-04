@@ -169,3 +169,21 @@ _Voting results:_
 """
     with pytest.raises(ValueError, match=r"Duplicate vote for 'Alice Adams'"):
         parse_minutes_md(text)
+
+
+def test_pledge_award_title_header_is_not_captured():
+    text = _minutes(
+        "### III. PLEDGE OF ALLEGIANCE\n\n"
+        "#### i. Little Miss and Mr. Cherry Blossom Festival 2024: "
+        "Alexandria Habersham, Alexander II School; Beau Mote, Vineville Academy\n"
+    )
+    parsed = parse_minutes_md(text)
+    assert [a for a in parsed.appearances if a.role == "pledge"] == []
+
+
+def test_plain_name_pledge_is_captured():
+    text = _minutes("### III. PLEDGE OF ALLEGIANCE\n\n#### i. Madison Pritchard\n")
+    parsed = parse_minutes_md(text)
+    pledges = [a for a in parsed.appearances if a.role == "pledge"]
+    assert len(pledges) == 1
+    assert pledges[0].person.full_name == "Madison Pritchard"

@@ -129,17 +129,21 @@ def _parse_appearances(body: list[str]) -> list[ParsedAppearance]:
                 )
             )
 
-        # Pledge leader: the #### sub-item under a PLEDGE OF ALLEGIANCE section.
+        # Pledge leader: a #### sub-item under PLEDGE OF ALLEGIANCE, but only when the
+        # header is a plain name — award-title headers ("Little Miss and Mr. … 2024:
+        # Name, School; …") are not people and are dropped.
         if "PLEDGE OF ALLEGIANCE" in section and s.startswith("#### "):
             item_m = _ITEM_HEADER.match(s)
             if item_m:
                 raw = html.unescape(item_m["rest"].strip())
-                appearances.append(
-                    ParsedAppearance(
-                        person=ParsedPerson(full_name=normalize_name(raw), raw_name=raw),
-                        role="pledge",
+                name = normalize_name(raw)
+                if looks_like_name(name):
+                    appearances.append(
+                        ParsedAppearance(
+                            person=ParsedPerson(full_name=name, raw_name=raw),
+                            role="pledge",
+                        )
                     )
-                )
 
         # Visitors: name-shaped lines under the INVITATION TO VISITORS section. The
         # section is often narrated in prose ("Four people addressed the Board."), so
