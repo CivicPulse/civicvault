@@ -1,0 +1,264 @@
+/*
+ * CivicVault — relationship graph page.
+ * Builds on civicvault.css tokens (Vault Black field, Signal Cyan accent,
+ * grotesk + mono). Type hues live ONLY here, on the graph, and always travel
+ * with a shape + label. Signal Cyan is reserved for the SELECTED / active state.
+ */
+
+/* ============================================================== HEAD */
+.graph-head {
+  border-bottom: 1px solid var(--line);
+  background:
+    radial-gradient(80% 120% at 88% -10%, var(--accent-glow), transparent 60%),
+    var(--bg-0);
+}
+.graph-head__intro { padding-block: var(--s-6) var(--s-4); max-width: 52rem; }
+.graph-head__title {
+  font-size: clamp(1.6rem, 1rem + 2.4vw, 2.2rem);
+  line-height: 1.1; letter-spacing: -0.025em; font-weight: 700;
+  text-wrap: balance; color: var(--ink);
+}
+.graph-head__lede {
+  margin-top: var(--s-3); max-width: 60ch;
+  color: var(--ink-2); text-wrap: pretty;
+}
+
+/* ---- toolbar: readout / filters / view toggle ---- */
+.graph-toolbar {
+  display: flex; flex-wrap: wrap; align-items: center;
+  gap: var(--s-3) var(--s-5); padding-block: var(--s-4);
+  border-top: 1px solid var(--line);
+}
+.graph-readout {
+  font-family: var(--font-mono); font-size: var(--t-sm); color: var(--ink-3);
+  letter-spacing: 0.02em; white-space: nowrap;
+}
+.graph-readout__n { color: var(--ink); font-weight: 600; }
+
+.graph-filters { display: flex; flex-wrap: wrap; gap: var(--s-2); }
+.gfilter {
+  display: inline-flex; align-items: center; gap: var(--s-2);
+  background: var(--bg-1); border: 1px solid var(--line);
+  border-radius: var(--r-pill); padding: var(--s-1) var(--s-3) var(--s-1) var(--s-2);
+  color: var(--ink-2); font-size: var(--t-sm); cursor: pointer;
+  transition: color var(--dur-fast) var(--ease-out),
+              border-color var(--dur-fast) var(--ease-out),
+              background var(--dur-fast) var(--ease-out), opacity var(--dur-fast);
+}
+.gfilter:hover { border-color: var(--line-strong); color: var(--ink); }
+.gfilter[aria-pressed="false"] { opacity: 0.45; }
+.gfilter[aria-pressed="false"] .gfilter__swatch { opacity: 0.4; }
+
+/* swatches: shape carries identity alongside color (a11y: never color alone) */
+.gfilter__swatch, .gl-group__swatch, .gr-type__dot {
+  --c: var(--ink-2);
+  flex: none; width: 0.85rem; height: 0.85rem;
+  background: color-mix(in oklch, var(--c) 26%, var(--bg-2));
+  border: 1.5px solid var(--c);
+}
+.gfilter__swatch--circle { border-radius: 50%; }
+.gfilter__swatch--square { border-radius: 2px; }
+.gfilter__swatch--diamond { border-radius: 1px; rotate: 45deg; scale: 0.86; }
+.gfilter__swatch--hexagon {
+  border-radius: 0;
+  clip-path: polygon(25% 5%, 75% 5%, 100% 50%, 75% 95%, 25% 95%, 0% 50%);
+  border: 0; background: var(--c);
+}
+
+.graph-views { display: inline-flex; margin-left: auto; border: 1px solid var(--line); border-radius: var(--r-md); overflow: hidden; }
+.gview {
+  background: var(--bg-1); border: 0; color: var(--ink-3);
+  padding: var(--s-2) var(--s-4); font-size: var(--t-sm); cursor: pointer;
+  transition: color var(--dur-fast), background var(--dur-fast);
+}
+.gview + .gview { border-left: 1px solid var(--line); }
+.gview:hover { color: var(--ink); }
+.gview.is-active { background: var(--bg-3); color: var(--accent-ink); }
+
+/* ============================================================== STAGE */
+.graph-shell { padding-block: var(--s-5) var(--s-7); }
+.graph-stage {
+  display: grid; gap: var(--s-4);
+  grid-template-columns: minmax(0, 1fr) 20rem;
+}
+/* `display:grid` above outranks the UA [hidden] rule, so toggle it explicitly.
+   This also keeps the empty SVG hidden for no-JS users (fallback shows instead). */
+.graph-stage[hidden] { display: none; }
+@media (max-width: 56rem) {
+  .graph-stage { grid-template-columns: minmax(0, 1fr); }
+}
+
+.graph-canvas-wrap {
+  position: relative;
+  border: 1px solid var(--line); border-radius: var(--r-lg);
+  background:
+    radial-gradient(120% 120% at 50% 0%, var(--bg-1), var(--bg-0) 70%);
+  overflow: clip;
+  min-height: 60vh;
+}
+.graph-canvas {
+  display: block; width: 100%; height: 100%; min-height: 60vh;
+  touch-action: none; cursor: grab;
+  /* faint field grid — depth without a shadow */
+  background-image:
+    linear-gradient(color-mix(in oklch, var(--line) 40%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in oklch, var(--line) 40%, transparent) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+.graph-canvas.is-grabbing { cursor: grabbing; }
+
+.graph-hint {
+  position: absolute; left: var(--s-4); bottom: var(--s-3);
+  font-size: var(--t-xs); color: var(--ink-3);
+  pointer-events: none; background: color-mix(in oklch, var(--bg-0) 70%, transparent);
+  padding: var(--s-1) var(--s-3); border-radius: var(--r-pill);
+  -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
+}
+.graph-hint .mono { color: var(--ink-2); }
+.graph-reset {
+  position: absolute; right: var(--s-3); top: var(--s-3);
+  background: color-mix(in oklch, var(--bg-1) 80%, transparent);
+  border: 1px solid var(--line); color: var(--ink-2);
+  border-radius: var(--r-md); padding: var(--s-1) var(--s-3);
+  font-family: var(--font-mono); font-size: var(--t-xs); cursor: pointer;
+  -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
+  transition: color var(--dur-fast), border-color var(--dur-fast);
+}
+.graph-reset:hover { color: var(--accent-ink); border-color: var(--accent-dim); }
+
+/* ============================================================== NODES / EDGES */
+.g-edge {
+  stroke: var(--line-strong); stroke-width: 1;
+  transition: stroke var(--dur-fast) var(--ease-out), opacity var(--dur-fast) var(--ease-out);
+}
+.g-edge.is-active { stroke: var(--accent); stroke-width: 1.75; }
+.g-edge.is-dim { opacity: 0.12; }
+.g-edge.is-filtered { display: none; }
+
+.g-edgelabel {
+  fill: var(--accent-ink); font-family: var(--font-mono); font-size: 10px;
+  paint-order: stroke; stroke: var(--bg-0); stroke-width: 3px; stroke-linejoin: round;
+}
+
+.gnode { cursor: pointer; transition: opacity var(--dur-fast) var(--ease-out); }
+.gnode__shape {
+  fill: var(--c-soft); stroke: var(--c); stroke-width: 1.6;
+  transition: fill var(--dur-fast) var(--ease-out),
+              stroke-width var(--dur-fast) var(--ease-out);
+}
+.gnode__label {
+  fill: var(--ink-2); font-family: var(--font-mono); font-size: 11px;
+  paint-order: stroke; stroke: var(--bg-0); stroke-width: 3.5px; stroke-linejoin: round;
+  pointer-events: none; transition: fill var(--dur-fast) var(--ease-out);
+}
+.gnode.is-hover .gnode__shape { fill: color-mix(in oklch, var(--c) 34%, var(--bg-1)); }
+.gnode.is-hover .gnode__label { fill: var(--ink); }
+.gnode:focus-visible { outline: none; }
+.gnode:focus-visible .gnode__shape {
+  stroke: var(--accent); stroke-width: 2.4;
+  filter: drop-shadow(0 0 6px var(--accent-glow));
+}
+
+.gnode.is-selected .gnode__shape {
+  stroke: var(--accent); stroke-width: 2.6;
+  fill: color-mix(in oklch, var(--c) 40%, var(--bg-1));
+  filter: drop-shadow(0 0 9px var(--accent-glow));
+}
+.gnode.is-selected .gnode__label { fill: var(--ink); }
+.gnode.is-dim { opacity: 0.32; }
+.gnode.is-filtered { display: none; }
+
+/* ============================================================== DETAIL RAIL */
+.graph-rail {
+  border: 1px solid var(--line); border-radius: var(--r-lg);
+  background: var(--bg-1); padding: var(--s-5);
+  align-self: start; position: sticky; top: 4.5rem;
+  max-height: calc(100dvh - 6rem); overflow: auto;
+}
+.graph-rail__empty { color: var(--ink-3); }
+.graph-rail__hint { font-weight: 600; color: var(--ink-2); }
+.graph-rail__sub { margin-top: var(--s-2); font-size: var(--t-sm); }
+
+.gr-head { border-bottom: 1px solid var(--line); padding-bottom: var(--s-3); }
+.gr-type {
+  display: inline-flex; align-items: center; gap: var(--s-2);
+  font-family: var(--font-mono); font-size: var(--t-2xs);
+  text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-3);
+}
+.gr-type__dot { width: 0.7rem; height: 0.7rem; }
+.gr-name { margin-top: var(--s-2); font-size: var(--t-lg); font-weight: 700; color: var(--ink); line-height: 1.2; text-wrap: balance; }
+.gr-name:focus-visible { outline: none; }
+.gr-sub { margin-top: 2px; font-size: var(--t-sm); color: var(--ink-3); }
+
+.gr-stats { margin-top: var(--s-4); display: grid; grid-template-columns: 1fr auto; gap: var(--s-2) var(--s-3); }
+.gr-stat { display: contents; }
+.gr-stat dt { color: var(--ink-2); font-size: var(--t-sm); }
+.gr-stat dd { color: var(--ink); font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+
+.gr-block { margin-top: var(--s-5); }
+.gr-block__title {
+  font-size: var(--t-xs); font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.05em; color: var(--ink-3); margin-bottom: var(--s-3);
+  display: flex; align-items: baseline; gap: var(--s-2);
+}
+.gr-block__title .mono { color: var(--ink-2); }
+
+.gr-docs { list-style: none; padding: 0; display: flex; flex-direction: column; gap: var(--s-2); }
+.gr-docs a, .gr-docs span { font-size: var(--t-sm); color: var(--ink-2); }
+.gr-docs a:hover { color: var(--accent-ink); }
+
+.gr-conns { list-style: none; padding: 0; display: flex; flex-direction: column; gap: var(--s-1); }
+.gr-conn {
+  display: flex; align-items: baseline; gap: var(--s-3); width: 100%; text-align: left;
+  background: transparent; border: 0; border-radius: var(--r-sm);
+  padding: var(--s-2); cursor: pointer; color: var(--ink-2);
+  transition: background var(--dur-fast), color var(--dur-fast);
+}
+.gr-conn:hover { background: var(--bg-2); color: var(--ink); }
+.gr-conn__rel { flex: none; min-width: 4.5rem; font-size: var(--t-2xs); color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.03em; }
+.gr-conn__name { font-size: var(--t-sm); }
+
+.gr-cta {
+  display: inline-flex; align-items: center; gap: var(--s-2); margin-top: var(--s-5);
+  background: var(--accent); color: var(--on-accent); font-weight: 600;
+  padding: var(--s-2) var(--s-4); border-radius: var(--r-md);
+  transition: background var(--dur-fast) var(--ease-out);
+}
+.gr-cta:hover { background: var(--accent-ink); text-decoration: none; }
+
+/* ============================================================== FALLBACK / LIST */
+.graph-fallback { padding-block: var(--s-3) var(--s-8); }
+.graph-fallback__note { font-family: var(--font-mono); font-size: var(--t-sm); color: var(--ink-3); margin-bottom: var(--s-5); }
+
+.gl-group { margin-top: var(--s-6); }
+.gl-group__head {
+  display: flex; align-items: center; gap: var(--s-3);
+  padding-bottom: var(--s-3); margin-bottom: var(--s-4);
+  border-bottom: 1px solid var(--line);
+}
+.gl-group__swatch { width: 1rem; height: 1rem; }
+.gl-group__title { font-size: var(--t-sm); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-2); }
+.gl-group__count { margin-left: auto; font-size: var(--t-xs); color: var(--ink-3); }
+
+.gl-list { list-style: none; padding: 0; display: grid; gap: var(--s-4); grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); }
+.gl-item { border: 1px solid var(--line); border-radius: var(--r-md); background: var(--bg-1); padding: var(--s-4); }
+.gl-item__head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--s-3); }
+.gl-item__name { font-weight: 600; color: var(--ink); }
+.gl-item__sub { font-family: var(--font-mono); font-size: var(--t-2xs); color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap; }
+.gl-stats { margin-top: var(--s-3); display: grid; grid-template-columns: 1fr auto; gap: var(--s-1) var(--s-3); }
+.gl-stat { display: contents; }
+.gl-stat dt { color: var(--ink-2); font-size: var(--t-sm); }
+.gl-stat dd { color: var(--ink); text-align: right; font-variant-numeric: tabular-nums; }
+.gl-docs { margin-top: var(--s-3); padding-left: var(--s-4); display: flex; flex-direction: column; gap: var(--s-1); font-size: var(--t-sm); color: var(--ink-2); }
+.gl-docs a:hover { color: var(--accent-ink); }
+.gl-item__link { display: inline-block; margin-top: var(--s-3); font-size: var(--t-sm); }
+
+.gl-edges { list-style: none; padding: 0; display: grid; gap: var(--s-1); grid-template-columns: repeat(auto-fill, minmax(20rem, 1fr)); }
+.gl-edges li { display: flex; align-items: baseline; gap: var(--s-2); padding: var(--s-2); border-bottom: 1px solid var(--line); }
+.gl-edge__from, .gl-edge__to { color: var(--ink); }
+.gl-edge__rel { color: var(--ink-3); font-size: var(--t-xs); text-transform: uppercase; letter-spacing: 0.03em; }
+
+/* ============================================================== REDUCED MOTION */
+@media (prefers-reduced-motion: reduce) {
+  .gnode, .gnode__shape, .gnode__label, .g-edge { transition: none; }
+}

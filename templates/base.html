@@ -27,6 +27,10 @@
       <a class="wordmark" href="{% url 'core:home' %}" aria-label="CivicVault home">
         <span>Civic</span><span class="wordmark__vault">Vault</span><span class="wordmark__cursor" aria-hidden="true"></span>
       </a>
+      <nav class="masthead__nav" aria-label="Primary">
+        <a href="{% url 'core:search' %}"{% if nav == 'search' %} aria-current="page"{% endif %}>Search</a>
+        <a href="{% url 'core:graph' %}"{% if nav == 'graph' %} aria-current="page"{% endif %}>Graph</a>
+      </nav>
       <span class="status" role="status" aria-label="Archive index is online">
         <span class="status__dot" aria-hidden="true"></span>
         Index&nbsp;Online

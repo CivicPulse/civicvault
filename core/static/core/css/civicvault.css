@@ -143,6 +143,17 @@ a:hover { text-decoration: underline; text-underline-offset: 0.18em; }
 }
 @keyframes cursor-blink { 0%,50% { opacity: 1; } 50.01%,100% { opacity: 0.15; } }
 
+/* Primary nav — sits between wordmark and status readout */
+.masthead__nav { display: flex; align-items: center; gap: var(--s-2); margin-left: auto; }
+.masthead__nav a {
+  color: var(--ink-2); font-size: var(--t-sm); font-weight: 500;
+  padding: var(--s-1) var(--s-3); border-radius: var(--r-md);
+  transition: color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out);
+}
+.masthead__nav a:hover { color: var(--ink); background: var(--bg-2); text-decoration: none; }
+.masthead__nav a[aria-current="page"] { color: var(--accent-ink); background: var(--bg-2); }
+@media (max-width: 32rem) { .status { display: none; } }
+
 .status {
   display: inline-flex; align-items: center; gap: var(--s-2);
   font-family: var(--font-mono); font-size: var(--t-2xs);

@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Relationship graph — CivicVault{% endblock %}
+{% block description %}The public record as a graph: jurisdictions, bodies, meetings, and the people who appear and vote, with every entity one step from its source.{% endblock %}
+
+{% block head_extra %}
+  <link rel="stylesheet" href="{% static 'core/css/graph.css' %}">
+{% endblock %}
+
+{% block content %}
+
+{# ============================================ HEAD: title, readout, controls #}
+<section class="graph-head">
+  <div class="shell">
+    <div class="graph-head__intro">
+      <p class="hero__kicker"><span aria-hidden="true">◆</span> Relationship index</p>
+      <h1 class="graph-head__title">The record, traced</h1>
+      <p class="graph-head__lede">
+        Every body, meeting, and reviewed person in the archive, drawn as the connections
+        between them. Select a node to open its file; each one is a step from its source.
+      </p>
+    </div>
+
+    <div class="graph-toolbar" role="region" aria-label="Graph controls">
+      <p class="graph-readout">
+        <span class="graph-readout__n mono tnum">{{ node_count }}</span> entities
+        <span class="readout__sep" aria-hidden="true">/</span>
+        <span class="graph-readout__n mono tnum">{{ edge_count }}</span> relationships
+      </p>
+
+      <div class="graph-filters" role="group" aria-label="Filter by entity type">
+        {% for t in legend %}
+        <button type="button" class="gfilter" data-type="{{ t.key }}" aria-pressed="true"
+                style="--c: oklch(74% 0.135 {{ t.hue }});">
+          <span class="gfilter__swatch gfilter__swatch--{{ t.shape }}" aria-hidden="true"></span>
+          <span class="gfilter__label">{{ t.label }}</span>
+        </button>
+        {% endfor %}
+      </div>
+
+      <div class="graph-views" role="group" aria-label="View mode">
+        <button type="button" class="gview is-active" data-view="graph" aria-pressed="true">Graph</button>
+        <button type="button" class="gview" data-view="list" aria-pressed="false">List</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+{# ============================================ STAGE (built/revealed by JS) #}
+<div class="shell graph-shell">
+  <section class="graph-stage" data-graph-stage hidden aria-label="Interactive relationship graph">
+    <div class="graph-canvas-wrap">
+      <svg class="graph-canvas" data-graph-canvas role="application"
+           aria-label="Force-directed graph of {{ node_count }} entities. Use Tab to move between nodes and Enter to open a node's detail panel.">
+      </svg>
+      <p class="graph-hint" data-graph-hint>
+        <span class="mono">drag</span> to pan · <span class="mono">scroll</span> to zoom ·
+        <span class="mono">click</span> a node for its file
+      </p>
+      <button type="button" class="graph-reset" data-graph-reset>Reset view</button>
+    </div>
+
+    <aside class="graph-rail" data-graph-rail aria-live="polite" aria-label="Selected entity">
+      <div class="graph-rail__empty" data-graph-empty>
+        <p class="graph-rail__hint">No entity selected.</p>
+        <p class="graph-rail__sub">Pick a node to read its facts and follow it to the source record.</p>
+      </div>
+    </aside>
+  </section>
+</div>
+
+{# ============================================ FALLBACK / LIST VIEW (always in DOM) #}
+<div class="shell graph-fallback" data-graph-fallback>
+  <p class="graph-fallback__note">
+    {% if node_count %}
+      {{ node_count }} entities and {{ edge_count }} relationships in the index.
+    {% else %}
+      No reviewed entities are in the index yet.
+    {% endif %}
+  </p>
+
+  {% for g in graph_groups %}
+  <section class="gl-group" aria-label="{{ g.meta.label }} entities">
+    <div class="gl-group__head">
+      <span class="gl-group__swatch gfilter__swatch--{{ g.meta.shape }}"
+            style="--c: oklch(74% 0.135 {{ g.meta.hue }});" aria-hidden="true"></span>
+      <h2 class="gl-group__title">{{ g.meta.label }}</h2>
+      <span class="gl-group__count mono">{{ g.nodes|length }}</span>
+    </div>
+    <ul class="gl-list">
+      {% for n in g.nodes %}
+      <li class="gl-item">
+        <div class="gl-item__head">
+          <span class="gl-item__name">{{ n.label }}</span>
+          {% if n.sublabel %}<span class="gl-item__sub">{{ n.sublabel }}</span>{% endif %}
+        </div>
+        {% if n.stats %}
+        <dl class="gl-stats">
+          {% for stat in n.stats %}
+          <div class="gl-stat"><dt>{{ stat.0 }}</dt><dd class="mono">{{ stat.1 }}</dd></div>
+          {% endfor %}
+        </dl>
+        {% endif %}
+        {% if n.docs %}
+        <ul class="gl-docs">
+          {% for d in n.docs %}
+          <li>
+            {% if d.href %}<a href="{{ d.href }}" target="_blank" rel="noopener">{{ d.title }} ↗</a>
+            {% else %}<span>{{ d.title }}</span>{% endif %}
+          </li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+        {% if n.href %}<a class="gl-item__link" href="{{ n.href }}">Search the record for this ↗</a>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endfor %}
+
+  {% if fallback_edges %}
+  <section class="gl-group" aria-label="Relationships">
+    <div class="gl-group__head">
+      <h2 class="gl-group__title">Relationships</h2>
+      <span class="gl-group__count mono">{{ fallback_edges|length }}</span>
+    </div>
+    <ul class="gl-edges">
+      {% for e in fallback_edges %}
+      <li><span class="gl-edge__from">{{ e.from }}</span>
+        <span class="gl-edge__rel mono">{{ e.rel }}</span>
+        <span class="gl-edge__to">{{ e.to }}</span></li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+</div>
+
+{{ graph_data|json_script:"graph-data" }}
+{% endblock %}
+
+{% block body_extra %}
+  <script src="{% static 'core/js/graph.js' %}" defer></script>
+{% endblock %}
