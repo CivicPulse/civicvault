@@ -44,7 +44,9 @@ def _without_classifier(title: str) -> str:
     '(BOE Action Item)', '(PRESENTATION & ACTION)', '(s)'. The minutes and event
     parsers strip these by different rules, so the same item can carry one on one
     side but not the other; canonicalizing both sides lets a code-less item still
-    join its outcome instead of silently dropping its votes."""
+    join its outcome instead of silently dropping its votes. (The minutes parser
+    strips only uppercase-initial classifiers via its own regex; this strips any
+    trailing parenthetical, which is why a fallback is needed.)"""
     return _TRAILING_PAREN.sub("", title).strip()
 
 
@@ -100,9 +102,12 @@ def parse_meeting_folder(folder: Path) -> ParsedMeeting:
 
     # Fallback join index: outcomes keyed by their title with a trailing
     # parenthetical classifier removed. Built only for keys whose stripped form
-    # is unambiguous (a stripped key shared by two outcomes is excluded, so the
-    # fallback never mis-attaches an outcome to the wrong item).
+    # is unambiguous on BOTH sides — a stripped key shared by two outcomes is
+    # excluded here, and (below) the fallback is skipped when two event items
+    # share a stripped title — so a single outcome is never attached to the wrong
+    # item or to two items at once.
     stripped_outcomes = {}
+    event_stripped_counts: dict[str, int] = {}
     if minutes is not None:
         stripped_counts: dict[str, int] = {}
         for key in minutes.outcomes:
@@ -113,6 +118,9 @@ def parse_meeting_folder(folder: Path) -> ParsedMeeting:
             for key, oc in minutes.outcomes.items()
             if stripped_counts[_without_classifier(key)] == 1
         }
+        for ev in event_items:
+            esk = _without_classifier(ev.title)
+            event_stripped_counts[esk] = event_stripped_counts.get(esk, 0) + 1
 
     items: list[ParsedAgendaItem] = []
     for ev in event_items:
@@ -122,11 +130,9 @@ def parse_meeting_folder(folder: Path) -> ParsedMeeting:
             # fallback (the minutes/event parsers strip trailing "(...)" markers
             # inconsistently). Two code-less items sharing a title still shadow
             # each other (a known, low-risk limitation for the current BCSD data).
-            outcome = (
-                minutes.outcomes.get(ev.code)
-                or minutes.outcomes.get(ev.title)
-                or stripped_outcomes.get(_without_classifier(ev.title))
-            )
+            base = _without_classifier(ev.title)
+            fallback = stripped_outcomes.get(base) if event_stripped_counts.get(base) == 1 else None
+            outcome = minutes.outcomes.get(ev.code) or minutes.outcomes.get(ev.title) or fallback
         items.append(
             ParsedAgendaItem(
                 order=ev.order,

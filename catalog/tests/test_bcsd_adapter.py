@@ -159,3 +159,41 @@ def test_join_tolerates_classifier_suffix_asymmetry(tmp_path):
     item = next(i for i in parsed.agenda_items if "Widget Purchase" in i.title)
     assert len(item.votes) == 2
     assert {v.person.full_name for v in item.votes} == {"Alice Adams", "Bob Brown"}
+
+
+def test_fallback_skips_when_two_event_items_share_stripped_title(tmp_path):
+    # Two event items strip to the same base title ("Budget Report"); a single
+    # minutes outcome must NOT have its votes attached to BOTH via the fallback.
+    folder = tmp_path / "2025-02-15_1600_committee-meeting_mid-888002"
+    folder.mkdir()
+    (folder / "event.md").write_text(
+        "# Committee Meeting\n\n"
+        "- **Meeting ID:** 888002\n"
+        "- **Meeting Type:** Committee Meeting\n\n"
+        "## Agenda Items\n\n"
+        "- I. New Business\n"
+        "- i. Budget Report (BOE Action Item)\n"
+        "- ii. Budget Report (Special Report)\n\n"
+        "## Files\n",
+        encoding="utf-8",
+    )
+    (folder / "minutes.md").write_text(
+        "# Committee Meeting\n\n"
+        "## Meeting Minutes\n\n"
+        "### Attendance\n\n"
+        "#### Voting Members\n\n"
+        "- Ms. Alice Adams, President\n"
+        "- Mr. Bob Brown, Board Member\n\n"
+        "### I. New Business\n\n"
+        "#### i. Budget Report (BOE Action Item)\n\n"
+        "_Voting results:_\n\n"
+        "- Yes: Ms. Alice Adams\n"
+        "- Yes: Mr. Bob Brown\n",
+        encoding="utf-8",
+    )
+    parsed = parse_meeting_folder(folder)
+    budget_items = [i for i in parsed.agenda_items if "Budget Report" in i.title]
+    assert len(budget_items) == 2
+    total = sum(len(i.votes) for i in budget_items)
+    # The 2 votes must not be double-attached across both ambiguous items.
+    assert total <= 2, f"votes double-attached: {[(i.title, len(i.votes)) for i in budget_items]}"
