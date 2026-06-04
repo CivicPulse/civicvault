@@ -66,9 +66,12 @@ amount_text: str = ""
 ### A2. Parser (`catalog/ingest/bcsd/minutes_md.py`)
 New pure function `extract_amount(outcome_text) -> tuple[Decimal | None, str]`:
 
-- Match a dollar figure **only** when immediately preceded by a contract-amount cue:
-  `in (the|an) amount [not to exceed]`, `at a[n] [annual] cost [not to exceed]`,
-  `aggregate amount [not to exceed]`, `at a cost of`, `for a total of`.
+- Match a dollar figure **only** when immediately preceded by a contract-amount cue, each
+  optionally followed by `of` or `not to exceed`:
+  `in (the|an) amount`, `at a[n] [annual] cost`, `aggregate amount`.
+  (These are the patterns actually present in the archive; deliberately *not* broadened to
+  generic phrasings like "for a total of", which appear in budget-report items and would
+  capture non-contract figures.)
 - Return the **first** cue-anchored figure as a `Decimal` (a trailing `(Funds — $250,000 …)` breakdown never overrides the headline value), plus the **verbatim window** from the cue through the figure (capped to `amount_text`'s length).
 - No cue → `(None, "")`. Populate the two new IR fields when building each `ParsedAgendaItem`.
 
@@ -102,7 +105,7 @@ Pure, Django-free, unit-testable:
 - `org_key(raw) -> str` — lowercased, punctuation-stripped matching key derived from the canonical name. Two raws with the same key are the same vendor.
 - `VENDOR_ALIASES: dict[str, str]` — curated variant-key → canonical-key. The durable, git-audited merge ledger (e.g. `"school city assessment platform": "school city"`).
 - `resolve_key(raw) -> str` — `org_key(raw)` then alias-map redirect; the single function callers use to get a vendor's canonical key.
-- `propose_collapses(names) -> list[tuple[str, str, float]]` — **pure-Python** token-set similarity (Jaccard over significant tokens) plus subset-containment, above a conservative threshold; returns only pairs **not already** unified by key or alias. Suggestion only; mutates nothing.
+- `propose_collapses(names) -> list[tuple[str, str, float]]` — **pure-Python** token-set similarity (Jaccard over significant tokens) plus subset-containment, above a conservative threshold; returns only pairs **not already** unified by key or alias. Suggestion only; mutates nothing. It *cannot* (and must not try to) distinguish a true variant ("School City" / "School City Assessment Platform") from two genuinely distinct entities ("Imagine Learning" / "Imagine Learning Foundation") — both are surfaced for a human to judge. The guarantee is the reverse: a pair already merged by key or alias is **never** re-proposed.
 
 ### B2. Integration in `build_relationships`
 - `vendor_name(title)` still extracts the raw name from the contract/renewal title. Then `canonicalize_org_name()` gives the display name and `resolve_key()` gives the slug input:
@@ -138,7 +141,7 @@ The meeting-body `get_or_create` may adopt `canonicalize_org_name()` for consist
 **Unit — `orgs.py`:**
 - `canonicalize_org_name`: suffix stripping (`Inc`/`LLC`/`Co`), `FY## Renewal`, `- Contract`, `Approval of`/`Renewal of`; "Costar" not truncated.
 - `org_key` / `resolve_key`: variant equality; alias-map redirect collapses `School City Assessment Platform` → `school city`.
-- `propose_collapses`: **finds** the School City pair as a candidate; **does not** propose "Imagine Learning" vs "Imagine Learning Foundation" (below threshold / distinct).
+- `propose_collapses`: **surfaces** an unaliased subset look-alike (e.g. "Renaissance Star" / "Renaissance Star 360") for review; does **not** pair unrelated vendors; and **skips** a pair already unified by the alias map ("School City" / "School City Assessment Platform" → `[]`).
 
 **Unit — `extract_amount` (fixtures grounded in real archive phrasings):**
 - `not to exceed`, `in the amount of`, `at an annual cost not to exceed`, `aggregate amount not to exceed` → correct `Decimal` + verbatim `amount_text`.
