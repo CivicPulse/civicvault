@@ -17,9 +17,9 @@
       <p class="hero__kicker"><span aria-hidden="true">◆</span> Relationship index</p>
       <h1 class="graph-head__title">The record, traced</h1>
       <p class="graph-head__lede">
-        Every reviewed person linked to the government body they take part in. Select a
-        person and a body, or click the line between them, to read every meeting that ties
-        them together.
+        People, the government bodies they take part in, and the vendors those bodies pay.
+        Select two entities, or click the line between them, to read the cited evidence:
+        the meetings behind a membership, the contracts behind a dollar figure.
       </p>
     </div>
 
@@ -152,10 +152,10 @@
           <span class="gl-edge__rel mono">{{ e.rel }}</span>
           <span class="gl-edge__to">{{ e.to }}</span>
         </div>
-        {% if e.meetings %}
+        {% if e.rows %}
         <ul class="gl-edge__meetings">
-          {% for mt in e.meetings %}
-          <li><span class="mono">{{ mt.label }}</span> · {{ mt.sub }}
+          {% for mt in e.rows %}
+          <li><span class="mono">{{ mt.label }}</span>{% if mt.sub %} · {{ mt.sub }}{% endif %}
             <span class="gl-mt__note">{{ mt.note }}</span></li>
           {% endfor %}
         </ul>

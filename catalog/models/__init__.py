@@ -5,6 +5,7 @@ from .facts import Appearance, Motion, Vote
 from .media import MediaAsset, MeetingCoverage, Transcript, TranscriptSegment
 from .meeting import AgendaItem, Meeting
 from .org import Jurisdiction, Organization, Person, Source
+from .relationship import Relationship
 
 __all__ = [
     "AgendaItem",
@@ -18,6 +19,7 @@ __all__ = [
     "Motion",
     "Organization",
     "Person",
+    "Relationship",
     "Reviewable",
     "Source",
     "TimeStamped",

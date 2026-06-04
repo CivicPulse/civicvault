@@ -317,6 +317,9 @@
 /* ============================================================== CLICKABLE EDGES */
 /* the thin visible line never grabs the pointer; the fat transparent twin does */
 .g-edge, .g-edgelabel { pointer-events: none; }
+/* contract ties read as "money" — a muted gold, distinct from membership lines */
+.g-edge--contracts_with { stroke: oklch(74% 0.11 80); }
+.g-edge--board_member { stroke: var(--line-strong); }
 .g-edge-hit {
   stroke: transparent; stroke-width: 16; fill: none;
   pointer-events: stroke; cursor: pointer;

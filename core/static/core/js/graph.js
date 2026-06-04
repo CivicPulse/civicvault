@@ -28,7 +28,8 @@
   // ---- Visual vocabulary (mirrors GRAPH_TYPES in views.py) -----------------
   const TYPE = {
     jurisdiction: { label: "Jurisdiction", shape: "hexagon", hue: 90, r: 26 },
-    organization: { label: "Body", shape: "square", hue: 300, r: 22 },
+    body: { label: "Body", shape: "square", hue: 305, r: 22 },
+    vendor: { label: "Vendor", shape: "square", hue: 245, r: 17 },
     person: { label: "Person", shape: "circle", hue: 25, r: 13 },
   };
   const typeOf = (n) => TYPE[n.type] || { label: n.type, shape: "circle", hue: 0, r: 12 };
@@ -71,6 +72,25 @@
 
   // ---- SVG scaffold --------------------------------------------------------
   const svg = stage.querySelector("[data-graph-canvas]");
+
+  // arrowhead marker; fill: context-stroke makes it match each edge's own colour
+  // (including cyan when active), so direction reads without a second legend.
+  const defs = document.createElementNS(SVGNS, "defs");
+  const marker = document.createElementNS(SVGNS, "marker");
+  marker.setAttribute("id", "gv-arrow");
+  marker.setAttribute("viewBox", "0 0 10 10");
+  marker.setAttribute("refX", "9");
+  marker.setAttribute("refY", "5");
+  marker.setAttribute("markerWidth", "6");
+  marker.setAttribute("markerHeight", "6");
+  marker.setAttribute("orient", "auto-start-reverse");
+  const arrow = document.createElementNS(SVGNS, "path");
+  arrow.setAttribute("d", "M0,0 L10,5 L0,10 z");
+  arrow.setAttribute("fill", "context-stroke");
+  marker.appendChild(arrow);
+  defs.appendChild(marker);
+  svg.appendChild(defs);
+
   const gEdges = document.createElementNS(SVGNS, "g");
   const gEdgeHit = document.createElementNS(SVGNS, "g"); // fat transparent click targets
   const gEdgeLabels = document.createElementNS(SVGNS, "g");
@@ -119,7 +139,8 @@
   // Build edge DOM: a thin visible line + a fat transparent line for easy clicking.
   links.forEach((l) => {
     const line = document.createElementNS(SVGNS, "line");
-    line.setAttribute("class", "g-edge");
+    line.setAttribute("class", `g-edge g-edge--${l.kind}`);
+    line.setAttribute("marker-end", "url(#gv-arrow)");
     gEdges.appendChild(line);
     l.el = line;
 
@@ -228,12 +249,19 @@
 
   function render() {
     links.forEach((l) => {
-      for (const el of [l.el, l.hit]) {
-        el.setAttribute("x1", l.source.x);
-        el.setAttribute("y1", l.source.y);
-        el.setAttribute("x2", l.target.x);
-        el.setAttribute("y2", l.target.y);
-      }
+      // hit-line spans the full centre-to-centre length (easy to click)
+      l.hit.setAttribute("x1", l.source.x);
+      l.hit.setAttribute("y1", l.source.y);
+      l.hit.setAttribute("x2", l.target.x);
+      l.hit.setAttribute("y2", l.target.y);
+      // visible line stops at the target's edge so its arrowhead is visible
+      const dx = l.target.x - l.source.x;
+      const dy = l.target.y - l.source.y;
+      const dist = Math.hypot(dx, dy) || 1;
+      l.el.setAttribute("x1", l.source.x);
+      l.el.setAttribute("y1", l.source.y);
+      l.el.setAttribute("x2", l.target.x - (dx / dist) * (l.target.r + 7));
+      l.el.setAttribute("y2", l.target.y - (dy / dist) * (l.target.r + 7));
     });
     nodes.forEach((n) => {
       n.el.setAttribute("transform", `translate(${n.x.toFixed(2)} ${n.y.toFixed(2)})`);
@@ -499,11 +527,11 @@
     // structural one (body -> jurisdiction) just navigates to the neighbour.
     const connItems = conns
       .map((c) => {
-        const hasMeetings = c.edge && c.edge.meetings && c.edge.meetings.length;
+        const hasDetail = c.edge && c.edge.rows && c.edge.rows.length;
         return `<li><button type="button" class="gr-conn" data-conn="${esc(c.node.id)}">
              <span class="gr-conn__rel mono">${esc(c.label)}</span>
              <span class="gr-conn__name">${esc(c.node.label)}</span>
-             ${hasMeetings ? '<span class="gr-conn__go" aria-hidden="true">→</span>' : ""}
+             ${hasDetail ? '<span class="gr-conn__go" aria-hidden="true">→</span>' : ""}
            </button></li>`;
       })
       .join("");
@@ -522,25 +550,25 @@
     `;
   }
 
-  // The relationship view: the meetings that tie two entities together.
+  // The relationship view: the evidence (meetings or contracts) that ties two
+  // entities together — driven by the edge's generic summary + rows payload.
   function relationshipHTML(edge) {
     const a = edge.source;
     const b = edge.target;
-    const mtgs = edge.meetings || [];
-    const rows = mtgs
+    const data = edge.rows || [];
+    const rows = data
       .map(
         (m) =>
           `<li class="gr-mt">
              <span class="gr-mt__date mono">${esc(m.label)}</span>
-             <span class="gr-mt__sub">${esc(m.sub)}</span>
+             ${m.sub ? `<span class="gr-mt__sub">${esc(m.sub)}</span>` : ""}
              <span class="gr-mt__note">${esc(m.note)}</span>
            </li>`
       )
       .join("");
-    const n = mtgs.length;
-    const body = n
+    const body = data.length
       ? `<div class="gr-block">
-           <h3 class="gr-block__title">${n} shared meeting${n === 1 ? "" : "s"}</h3>
+           <h3 class="gr-block__title">${esc(edge.summary || `${data.length} items`)}</h3>
            <ul class="gr-mts">${rows}</ul>
          </div>`
       : `<p class="gr-sub">${esc(edge.label || "Connected")}.</p>`;
@@ -579,7 +607,7 @@
         const neighbor = byId.get(btn.dataset.conn);
         if (!neighbor || !selected) return;
         const edge = edgeBetween(selected, neighbor);
-        if (edge && edge.meetings && edge.meetings.length) {
+        if (edge && edge.rows && edge.rows.length) {
           selectEdge(edge);
         } else {
           select(neighbor, true);

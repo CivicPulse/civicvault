@@ -10,8 +10,10 @@ payload.
 import datetime
 import json
 import re
+from decimal import Decimal
 
 import pytest
+from django.contrib.contenttypes.models import ContentType
 
 from catalog.models import (
     AgendaItem,
@@ -21,8 +23,21 @@ from catalog.models import (
     Meeting,
     Organization,
     Person,
+    Relationship,
     Vote,
 )
+
+
+def _make_relationship(subject, obj, predicate, **kwargs):
+    """Create a directed Relationship between two model instances."""
+    return Relationship.objects.create(
+        subject_ct=ContentType.objects.get_for_model(subject),
+        subject_id=subject.pk,
+        object_ct=ContentType.objects.get_for_model(obj),
+        object_id=obj.pk,
+        predicate=predicate,
+        **kwargs,
+    )
 
 GRAPH_DATA_RE = re.compile(
     r'id="graph-data" type="application/json">(.*?)</script>', re.S
@@ -153,12 +168,12 @@ def test_person_links_directly_to_body_with_collapsed_meetings(client, seeded):
     ties = [e for e in data["edges"] if {e["source"], e["target"]} == {person_id, org_id}]
     assert len(ties) == 1, "the two meeting ties must collapse into a single edge"
     edge = ties[0]
-    assert edge["kind"] == "participates"
-    assert len(edge["meetings"]) == 2
+    assert edge["kind"] == "participates"  # no board_member_of relationship yet
+    assert len(edge["rows"]) == 2
     # newest meeting first (Apr 17 before Feb 20)
-    assert edge["meetings"][0]["label"].startswith("Apr")
+    assert edge["rows"][0]["label"].startswith("Apr")
     # the board meeting where the person voted carries that in its note
-    assert any("voted" in m["note"] for m in edge["meetings"])
+    assert any("voted" in m["note"] for m in edge["rows"])
 
 
 @pytest.mark.django_db
@@ -202,4 +217,65 @@ def test_list_edges_carry_endpoint_types_for_filtering(client, seeded):
     assert "data-edge" in body
     # the person->body tie should expose both endpoint types
     assert 'data-source-type="person"' in body
-    assert 'data-target-type="organization"' in body
+    assert 'data-target-type="body"' in body
+
+
+@pytest.mark.django_db
+def test_board_member_relationship_relabels_the_edge(client, seeded):
+    """A reviewed board_member_of relationship turns the participation edge into a
+    typed 'board member' tie."""
+    _make_relationship(
+        seeded["shown"],
+        seeded["body"],
+        Relationship.Predicate.BOARD_MEMBER_OF,
+        reviewed=True,
+    )
+    _resp, data = _graph_payload(client)
+    pid = f"person-{seeded['shown'].pk}"
+    oid = f"organization-{seeded['body'].pk}"
+    edge = next(e for e in data["edges"] if {e["source"], e["target"]} == {pid, oid})
+    assert edge["kind"] == "board_member"
+    assert edge["label"] == "board member"
+
+
+@pytest.mark.django_db
+def test_contract_relationship_adds_vendor_node_and_money_edge(client, seeded):
+    """A reviewed contracts_with relationship adds a vendor node and a directed,
+    dollar-summed edge whose rows carry the amount."""
+    vendor = Organization.objects.create(
+        name="Acme Copiers", slug="acme", kind=Organization.Kind.COMPANY, reviewed=True
+    )
+    _make_relationship(
+        seeded["body"],
+        vendor,
+        Relationship.Predicate.CONTRACTS_WITH,
+        amount=Decimal("125000.00"),
+        note="Copier lease",
+        reviewed=True,
+    )
+    _resp, data = _graph_payload(client)
+    vnode = next((n for n in data["nodes"] if n["id"] == f"organization-{vendor.pk}"), None)
+    assert vnode is not None and vnode["type"] == "vendor"
+    edge = next(e for e in data["edges"] if e["kind"] == "contracts_with")
+    assert edge["source"] == f"organization-{seeded['body'].pk}"
+    assert edge["target"] == f"organization-{vendor.pk}"
+    assert "$125,000" in edge["label"]
+    assert edge["rows"][0]["note"] == "$125,000"
+
+
+@pytest.mark.django_db
+def test_unreviewed_relationship_and_vendor_are_gated(client, seeded):
+    """Unreviewed vendor + relationship stay out of the public graph."""
+    vendor = Organization.objects.create(
+        name="Hidden Vendor", slug="hidden-vendor", kind=Organization.Kind.COMPANY, reviewed=False
+    )
+    _make_relationship(
+        seeded["body"],
+        vendor,
+        Relationship.Predicate.CONTRACTS_WITH,
+        amount=Decimal("999.00"),
+        reviewed=False,
+    )
+    _resp, data = _graph_payload(client)
+    assert "Hidden Vendor" not in {n["label"] for n in data["nodes"]}
+    assert not any(e["kind"] == "contracts_with" for e in data["edges"])

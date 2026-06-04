@@ -13,6 +13,7 @@ layered on top of the same UI.
 
 import re
 from collections import defaultdict
+from decimal import Decimal
 from urllib.parse import urlencode
 
 from django.core.files.storage import default_storage
@@ -32,6 +33,7 @@ from catalog.models import (
     Motion,
     Organization,
     Person,
+    Relationship,
     TranscriptSegment,
     Vote,
 )
@@ -275,8 +277,16 @@ def document_source(request, pk):
 # avoid Signal Cyan (215), which is reserved for the selected/active state.
 GRAPH_TYPES = {
     "jurisdiction": {"label": "Jurisdiction", "shape": "hexagon", "hue": 90},
-    "organization": {"label": "Body", "shape": "square", "hue": 300},
+    "body": {"label": "Body", "shape": "square", "hue": 305},
+    "vendor": {"label": "Vendor", "shape": "square", "hue": 245},
     "person": {"label": "Person", "shape": "circle", "hue": 25},
+}
+
+# Organization kinds that are vendors/cross-agency entities, not meeting bodies.
+VENDOR_KINDS = {
+    Organization.Kind.COMPANY,
+    Organization.Kind.NONPROFIT,
+    Organization.Kind.CAMPAIGN,
 }
 
 
@@ -337,30 +347,62 @@ def graph(request):
             }
         )
 
-    # ---- Bodies / organizations (reviewed only) ------------------------
+    # ---- Standing relationships (reviewed, cited) ----------------------
+    # board_member_of: a (person, body) set that relabels the participation edge.
+    board_members = set()
+    for r in Relationship.objects.filter(
+        reviewed=True, predicate=Relationship.Predicate.BOARD_MEMBER_OF
+    ).values("subject_id", "object_id"):
+        board_members.add((r["subject_id"], r["object_id"]))
+
+    # contracts_with: aggregate body -> vendor ties, summing dollar value.
+    contracts = defaultdict(list)  # (body_pk, vendor_pk) -> [contract rows]
+    vendor_totals = defaultdict(lambda: {"count": 0, "amount": Decimal(0)})
+    for r in Relationship.objects.filter(
+        reviewed=True, predicate=Relationship.Predicate.CONTRACTS_WITH
+    ):
+        contracts[(r.subject_id, r.object_id)].append(
+            {"label": r.note or "Contract", "date": r.occurred_on, "amount": r.amount}
+        )
+        vendor_totals[r.object_id]["count"] += 1
+        if r.amount:
+            vendor_totals[r.object_id]["amount"] += r.amount
+
+    # ---- Organizations (reviewed only): bodies vs vendors --------------
     org_ids = set()
     for o in Organization.objects.filter(reviewed=True).select_related("jurisdiction"):
         oid = f"organization-{o.pk}"
         org_ids.add(o.pk)
-        n_meetings = Meeting.objects.filter(body=o).count()
-        n_people = (
-            Person.objects.filter(reviewed=True, appearances__meeting__body=o).distinct().count()
-        )
+        if o.kind in VENDOR_KINDS:
+            vt = vendor_totals.get(o.pk, {"count": 0, "amount": Decimal(0)})
+            stats = [["Contracts", vt["count"]]]
+            if vt["amount"]:
+                stats.append(["Total value", f"${vt['amount']:,.0f}"])
+            node_type = "vendor"
+        else:
+            n_meetings = Meeting.objects.filter(body=o).count()
+            n_people = (
+                Person.objects.filter(reviewed=True, appearances__meeting__body=o)
+                .distinct()
+                .count()
+            )
+            stats = [["Meetings", n_meetings], ["People seen", n_people]]
+            if o.aka:
+                stats.append(["Aliases", len(o.aka)])
+            node_type = "body"
         nodes.append(
             {
                 "id": oid,
-                "type": "organization",
+                "type": node_type,
                 "label": o.name,
                 "sublabel": o.get_kind_display(),
                 "href": _search_href(o.name),
-                "stats": (
-                    [["Meetings", n_meetings], ["People seen", n_people]]
-                    + ([["Aliases", len(o.aka)]] if o.aka else [])
-                ),
+                "stats": stats,
                 "docs": [],
             }
         )
-        if o.jurisdiction_id:
+        # only meeting bodies sit inside a jurisdiction; vendors are cross-agency
+        if node_type == "body" and o.jurisdiction_id:
             edges.append(
                 {
                     "source": oid,
@@ -369,6 +411,36 @@ def graph(request):
                     "label": "sits in",
                 }
             )
+
+    # body -> vendor contract edges, dollar-summed, newest/biggest first.
+    for (body_pk, vendor_pk), rows in contracts.items():
+        if body_pk not in org_ids or vendor_pk not in org_ids:
+            continue
+        rows.sort(key=lambda r: (r["amount"] or Decimal(0)), reverse=True)
+        total = sum((r["amount"] or Decimal(0)) for r in rows)
+        n = len(rows)
+        detail = [
+            {
+                "label": r["label"][:90],
+                "sub": f"{r['date']:%b %-d, %Y}" if r["date"] else "",
+                "note": f"${r['amount']:,.0f}" if r["amount"] else "amount not recorded",
+            }
+            for r in rows
+        ]
+        summary = f"{n} contract" + ("" if n == 1 else "s")
+        if total:
+            summary += f" · ${total:,.0f}"
+        edges.append(
+            {
+                "source": f"organization-{body_pk}",
+                "target": f"organization-{vendor_pk}",
+                "kind": "contracts_with",
+                "label": f"${total:,.0f}" if total else summary,
+                "weight": n,
+                "summary": summary,
+                "rows": detail,
+            }
+        )
 
     # Meeting metadata, kept out of the node set: meetings are evidence carried on
     # the person<->body edges, not glue. body_meeting maps a meeting to its body.
@@ -462,14 +534,16 @@ def graph(request):
         for r in mtgs:
             del r["date"]  # only needed for the sort; keep the JSON lean
         n = len(mtgs)
+        is_member = (person_pk, body_pk) in board_members
         edges.append(
             {
                 "source": f"person-{person_pk}",
                 "target": f"organization-{body_pk}",
-                "kind": "participates",
-                "label": f"{n} meeting" + ("" if n == 1 else "s"),
+                "kind": "board_member" if is_member else "participates",
+                "label": "board member" if is_member else f"{n} meeting" + ("" if n == 1 else "s"),
                 "weight": n,
-                "meetings": mtgs,
+                "summary": f"{n} shared meeting" + ("" if n == 1 else "s"),
+                "rows": mtgs,
             }
         )
 
@@ -493,7 +567,7 @@ def graph(request):
             "to": id_label[e["target"]],
             "source_type": id_type[e["source"]],
             "target_type": id_type[e["target"]],
-            "meetings": e.get("meetings", []),
+            "rows": e.get("rows", []),
         }
         for e in edges
     ]
