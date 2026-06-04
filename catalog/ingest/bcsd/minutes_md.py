@@ -13,6 +13,7 @@ _CODE = re.compile(r"\b([A-Z]{2,4}-\d+)\b")
 _ITEM_HEADER = re.compile(r"^#{4,}\s+(?:[ivxlc]+|[a-z]|\d+)\\?\.\s+(?P<rest>.+?)\s*$")
 _SECTION_HEADER = re.compile(r"^###\s+(?P<rest>.+?)\s*$")
 _INVOCATION = re.compile(r"invocation was given by\s+(?P<name>.+?)\.?\s*$", re.IGNORECASE)
+_DEPUNCT = re.compile(r"[^a-z]")
 
 # A contract-amount cue immediately preceding a $ figure. Each cue may be followed
 # by "of" or "not to exceed". Grounded in real BCSD outcome text; deliberately NOT
@@ -107,6 +108,12 @@ def _parse_roster(body: list[str]) -> list[ParsedPerson]:
     return roster
 
 
+# NB: this overlaps intentionally with names._TITLE / names._HONORIFIC. normalize_name
+# strips a leading honorific/title from the WHOLE pre-comma string; _ROLE_TOKENS strips
+# leading role/title tokens from each comma-segment here (and catches multi-word role
+# descriptors like "Board member"/"Lead Pastor" that _TITLE does not). Keep the two in
+# sync when adding new titles.
+#
 # Leading role/title tokens (lowercase, punctuation-stripped) to drop before
 # validating an invocation segment as a name. Honorifics + religious + position
 # roles seen in the BCSD corpus; a segment that is ENTIRELY these strips to empty
@@ -167,7 +174,7 @@ def _strip_leading_roles(text: str) -> str:
     """Drop leading role/title tokens; return the remaining candidate name."""
     toks = text.split()
     i = 0
-    while i < len(toks) and re.sub(r"[^a-z]", "", toks[i].lower()) in _ROLE_TOKENS:
+    while i < len(toks) and _DEPUNCT.sub("", toks[i].lower()) in _ROLE_TOKENS:
         i += 1
     return " ".join(toks[i:]).strip(" .,")
 
