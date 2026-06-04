@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: civicvault
+  namespace: civicvault
+  labels:
+    app.kubernetes.io/name: civicvault
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: civicvault
+  ports:
+    # Traefik routes to port 80; the container listens on 8000 (gunicorn).
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP
