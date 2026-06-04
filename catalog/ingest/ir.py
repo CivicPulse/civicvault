@@ -91,6 +91,7 @@ class ParsedRecording:
     source_url: str
     r2_key: str  # "BCSD/..." (§1c convention); "" when not under a BCSD_* dir
     is_combined: bool  # title mentions both "Committee" and "Board"
+    is_meeting: bool = True  # title denotes a meeting (vs a non-meeting video like a ceremony)
     segments: tuple[ParsedTranscriptSegment, ...] = ()
     transcript_origin: str = "youtube_captions"  # "youtube_captions" | "whisper" | ""
     source_path: str = ""  # the .info.json path

@@ -11,7 +11,7 @@ def _seg(start, text):
     return ParsedTranscriptSegment(start=start, end=start + 1, text=text)
 
 
-def _recording(is_combined, segments=()):
+def _recording(is_combined, segments=(), is_meeting=True):
     return ParsedRecording(
         youtube_id="vid",
         title="Committee and Board Meeting 1/19/2023",
@@ -21,6 +21,7 @@ def _recording(is_combined, segments=()):
         source_url="https://youtu.be/vid",
         r2_key="",
         is_combined=is_combined,
+        is_meeting=is_meeting,
         segments=segments,
     )
 
@@ -109,3 +110,10 @@ def test_non_combined_with_two_candidates_is_single_window_on_committee(two_meet
 def test_no_candidate_meetings_is_unlinked():
     rec = _recording(is_combined=True)
     assert match_recording(rec, []) == []
+
+
+@pytest.mark.django_db
+def test_non_meeting_recording_is_unlinked_even_with_candidates(two_meetings):
+    committee, board = two_meetings
+    rec = _recording(is_combined=False, is_meeting=False)
+    assert match_recording(rec, [committee, board]) == []

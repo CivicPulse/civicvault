@@ -65,6 +65,35 @@ def test_command_no_matching_meeting_is_unlinked(boe):
 
 
 @pytest.mark.django_db
+def test_command_non_meeting_video_is_unlinked_even_near_meeting(boe, tmp_path):
+    jur, body = boe
+    Meeting.objects.create(
+        body=body,
+        jurisdiction=jur,
+        date=datetime.date(2023, 1, 19),
+        start_time=datetime.time(16, 0),
+        kind=Meeting.Kind.COMMITTEE,
+        slug="c",
+    )
+    Meeting.objects.create(
+        body=body,
+        jurisdiction=jur,
+        date=datetime.date(2023, 1, 19),
+        start_time=datetime.time(18, 30),
+        kind=Meeting.Kind.BOARD,
+        slug="b",
+    )
+    info = tmp_path / "show_up_SHOWvid2_.info.json"
+    info.write_text(
+        '{"id": "SHOWvid2", "title": "Show Up Program January 20 2023 Elementary", '
+        '"duration": 60, "upload_date": "20230120", "webpage_url": "https://youtu.be/SHOWvid2"}'
+    )
+    call_command("ingest_recording", str(info))
+    media = MediaAsset.objects.get(youtube_id="SHOWvid2")
+    assert MeetingCoverage.objects.filter(media=media).count() == 0
+
+
+@pytest.mark.django_db
 def test_command_whisper_used_when_no_vtt(boe, tmp_path, monkeypatch):
     # Stage an info.json with no sibling .vtt.
     info = tmp_path / "novtt_WHISPERvid1_.info.json"

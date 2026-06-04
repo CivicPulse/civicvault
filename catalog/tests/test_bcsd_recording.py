@@ -66,3 +66,19 @@ def test_parse_recording_handles_malformed_upload_date(tmp_path):
     rec = parse_recording(info)
     assert rec.upload_date is None
     assert rec.recorded_on == datetime.date(2023, 2, 2)
+
+
+def test_meeting_title_sets_is_meeting_true():
+    rec = parse_recording(INFO)
+    assert rec.is_meeting is True
+
+
+def test_non_meeting_title_sets_is_meeting_false(tmp_path):
+    info = tmp_path / "show_up_SHOWvid1_.info.json"
+    info.write_text(
+        '{"id": "SHOWvid1", "title": "Show Up Program January 20 2023 Elementary Program '
+        'Southwest High School", "duration": 60, "upload_date": "20230120", '
+        '"webpage_url": "https://youtu.be/SHOWvid1"}'
+    )
+    rec = parse_recording(info)
+    assert rec.is_meeting is False

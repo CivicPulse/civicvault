@@ -11,6 +11,7 @@ from catalog.ingest.bcsd.files import r2_key_for
 from catalog.ingest.bcsd.vtt import parse_vtt
 from catalog.ingest.ir import ParsedRecording
 
+_MEETING_KEYWORDS = ("committee", "board", "meeting")
 _NUMERIC_DATE = re.compile(r"\b(\d{1,2})[/_.](\d{1,2})[/_.]((?:19|20)\d{2})\b")
 _MONTHS = {
     "january": 1,
@@ -103,6 +104,7 @@ def parse_recording(info_path: Path | str) -> ParsedRecording:
     mp4 = _find_mp4(siblings, youtube_id)
     r2_key = _r2_key_or_blank(mp4) if mp4 is not None else ""
 
+    title_lower = title.lower()
     return ParsedRecording(
         youtube_id=youtube_id,
         title=title,
@@ -111,7 +113,8 @@ def parse_recording(info_path: Path | str) -> ParsedRecording:
         duration_seconds=info.get("duration"),
         source_url=info.get("webpage_url", ""),
         r2_key=r2_key,
-        is_combined=("committee" in title.lower() and "board" in title.lower()),
+        is_combined=("committee" in title_lower and "board" in title_lower),
+        is_meeting=any(kw in title_lower for kw in _MEETING_KEYWORDS),
         segments=segments,
         transcript_origin=origin,
         source_path=str(info_path),

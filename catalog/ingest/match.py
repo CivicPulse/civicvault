@@ -38,6 +38,12 @@ def _sort_key(meeting):
 
 
 def match_recording(parsed: ParsedRecording, candidate_meetings) -> list[CoverageDecision]:
+    if not parsed.is_meeting:
+        logger.info(
+            "Recording %s title does not denote a meeting; leaving it unlinked.",
+            parsed.youtube_id,
+        )
+        return []
     meetings = sorted(candidate_meetings, key=_sort_key)
 
     if not meetings:
