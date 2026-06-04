@@ -3,6 +3,7 @@
 import html
 import re
 from dataclasses import dataclass, field
+from decimal import Decimal, InvalidOperation
 
 from catalog.ingest.bcsd.motions import parse_outcome_block
 from catalog.ingest.ir import ParsedAppearance, ParsedMotion, ParsedPerson, ParsedVote
@@ -13,6 +14,37 @@ _ITEM_HEADER = re.compile(r"^#{4,}\s+(?:[ivxlc]+|[a-z]|\d+)\\?\.\s+(?P<rest>.+?)
 _SECTION_HEADER = re.compile(r"^###\s+(?P<rest>.+?)\s*$")
 _INVOCATION = re.compile(r"invocation was given by\s+(?P<name>.+?)\.?\s*$", re.IGNORECASE)
 
+# A contract-amount cue immediately preceding a $ figure. Each cue may be followed
+# by "of" or "not to exceed". Grounded in real BCSD outcome text; deliberately NOT
+# broadened to generic phrasings (e.g. "for a total of") that appear in budget items.
+_AMOUNT_CUE = re.compile(
+    r"(?P<phrase>"
+    r"(?:in\s+(?:the|an)\s+amount|at\s+a(?:n)?(?:\s+annual)?\s+cost|aggregate\s+amount)"
+    r"(?:\s+(?:of|not\s+to\s+exceed))?"
+    r"\s*\$\s*(?P<num>[\d,]+(?:\.\d{2})?))",
+    re.IGNORECASE,
+)
+
+
+def extract_amount(outcome_text: str) -> tuple[Decimal | None, str]:
+    """Return (figure, verbatim_phrase) for the FIRST contract-amount cue, else (None, "").
+
+    Captures a dollar figure only when a contract-amount cue precedes it
+    ("in the amount [not to exceed] of $X", "at an annual cost not to exceed $X",
+    "aggregate amount of $X"). Governance thresholds ("contract in excess of
+    $150,000") carry no cue and yield no amount. A trailing funding-source
+    breakdown never overrides the headline value (the first match wins).
+    """
+    m = _AMOUNT_CUE.search(outcome_text or "")
+    if not m:
+        return None, ""
+    try:
+        value = Decimal(m.group("num").replace(",", ""))
+    except InvalidOperation:
+        return None, ""
+    phrase = " ".join(m.group("phrase").split())[:255]
+    return value, phrase
+
 
 @dataclass(frozen=True)
 class ItemOutcome:
@@ -22,6 +54,8 @@ class ItemOutcome:
     outcome_status: str
     motions: tuple[ParsedMotion, ...]
     votes: tuple[ParsedVote, ...]
+    amount: Decimal | None = None
+    amount_text: str = ""
 
 
 @dataclass(frozen=True)
@@ -181,6 +215,7 @@ def parse_minutes_md(text: str) -> ParsedMinutes:
                     f"layout or extend _ITEM_HEADER."
                 )
             seen_voters.add(v.person.full_name)
+        amount, amount_text = extract_amount(otext)
         outcomes[key] = ItemOutcome(
             code=code,
             title=title,
@@ -188,6 +223,8 @@ def parse_minutes_md(text: str) -> ParsedMinutes:
             outcome_status=status,
             motions=tuple(motions),
             votes=tuple(votes),
+            amount=amount,
+            amount_text=amount_text,
         )
 
     return ParsedMinutes(
