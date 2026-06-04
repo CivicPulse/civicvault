@@ -466,7 +466,154 @@ git commit -m "test(ingest): end-to-end personnel meeting ingests with correct v
 
 ---
 
-### Task 6: Archive-wide regression sweep (local; skipped when archive absent)
+### Task 6A: Fix the event↔minutes classifier-join asymmetry
+
+**Files:**
+- Modify: `catalog/ingest/bcsd/adapter.py` (add a helper + a fallback in the event↔minutes join)
+- Test: `catalog/tests/test_bcsd_adapter.py`
+
+**Why (discovered by the Task 6 sweep):** The minutes parser strips a trailing parenthetical classifier from item titles with `re.sub(r"\s*\([A-Z][^)]*\)\s*$", "", title)` (case-sensitive, uppercase-initial), while the event parser strips only a clean `(TYPE)` / `(TYPE - Reading)` via `_TYPE` (which has `re.IGNORECASE`). For classifier shapes the two handle differently — `(BOE Action Item)`, `(PRESENTATION & ACTION)` (minutes strips, event keeps) and `(s)` (event strips, minutes keeps) — the two titles diverge and the code-less item fails to join, silently dropping its roll-call votes. A parse sweep over all 539 meetings found exactly 3 such dropped outcomes (`mid-52170`, `mid-99153`, `mid-119877`); the header-depth fix newly exposed one of them. This task makes the join tolerant of the asymmetry. Validated by prototype: with this fallback, residual dropped vote-outcomes across the whole archive go to **0**, with **0** ambiguous-key collisions.
+
+- [ ] **Step 1: Write the failing tests**
+
+Append to `catalog/tests/test_bcsd_adapter.py`. First ensure the imports at the top of that file include `parse_meeting_folder` and the new helper `_without_classifier` from `catalog.ingest.bcsd.adapter` (add them to the existing adapter import, or add `from catalog.ingest.bcsd.adapter import parse_meeting_folder, _without_classifier`). Then add:
+
+```python
+def test_without_classifier_strips_trailing_parenthetical():
+    assert _without_classifier("Approval of X (BOE Action Item)") == "Approval of X"
+    assert _without_classifier("Millage Rate (PRESENTATION & ACTION)") == "Millage Rate"
+    assert _without_classifier("Search Finalist(s)") == "Search Finalist"
+    assert _without_classifier("Plain Title") == "Plain Title"
+
+
+def test_join_tolerates_classifier_suffix_asymmetry(tmp_path):
+    # event.md keeps a trailing "(BOE Action Item)" classifier that the minutes
+    # parser strips; the roll call must still attach to the item.
+    folder = tmp_path / "2025-01-15_1600_committee-meeting_mid-888001"
+    folder.mkdir()
+    (folder / "event.md").write_text(
+        "# Committee Meeting\n\n"
+        "- **Meeting ID:** 888001\n"
+        "- **Meeting Type:** Committee Meeting\n\n"
+        "## Agenda Items\n\n"
+        "- I. New Business\n"
+        "- i. Approval of Widget Purchase (BOE Action Item)\n\n"
+        "## Files\n",
+        encoding="utf-8",
+    )
+    (folder / "minutes.md").write_text(
+        "# Committee Meeting\n\n"
+        "## Meeting Minutes\n\n"
+        "### Attendance\n\n"
+        "#### Voting Members\n\n"
+        "- Ms. Alice Adams, President\n"
+        "- Mr. Bob Brown, Board Member\n\n"
+        "### I. New Business\n\n"
+        "#### i. Approval of Widget Purchase (BOE Action Item)\n\n"
+        "_Voting results:_\n\n"
+        "- Yes: Ms. Alice Adams\n"
+        "- Yes: Mr. Bob Brown\n",
+        encoding="utf-8",
+    )
+    parsed = parse_meeting_folder(folder)
+    item = next(i for i in parsed.agenda_items if "Widget Purchase" in i.title)
+    assert len(item.votes) == 2
+    assert {v.person.full_name for v in item.votes} == {"Alice Adams", "Bob Brown"}
+```
+
+- [ ] **Step 2: Run them and CONFIRM THEY FAIL**
+
+Run: `uv run pytest catalog/tests/test_bcsd_adapter.py::test_without_classifier_strips_trailing_parenthetical catalog/tests/test_bcsd_adapter.py::test_join_tolerates_classifier_suffix_asymmetry -v`
+Expected: the first fails at import time / `NameError` (`_without_classifier` doesn't exist yet); the integration test fails on `assert len(item.votes) == 2` (currently 0 — the votes drop). You MUST see them fail first.
+
+- [ ] **Step 3: Add the helper and the join fallback in `catalog/ingest/bcsd/adapter.py`**
+
+`re` is already imported at the top of the file. Add this helper immediately AFTER the existing `_files_for_item(...)` function and BEFORE `def parse_meeting_folder(`:
+
+```python
+_TRAILING_PAREN = re.compile(r"\s*\([^)]*\)\s*$")
+
+
+def _without_classifier(title: str) -> str:
+    """Drop a single trailing parenthetical classifier — e.g. '(ACTION)',
+    '(BOE Action Item)', '(PRESENTATION & ACTION)', '(s)'. The minutes and event
+    parsers strip these by different rules, so the same item can carry one on one
+    side but not the other; canonicalizing both sides lets a code-less item still
+    join its outcome instead of silently dropping its votes."""
+    return _TRAILING_PAREN.sub("", title).strip()
+```
+
+Then replace the join block. Change this:
+
+```python
+    items: list[ParsedAgendaItem] = []
+    for ev in event_items:
+        outcome = None
+        if minutes is not None:
+            # Code-less items are keyed by title, so two code-less items sharing
+            # a title would shadow each other in minutes.outcomes (a known,
+            # low-risk limitation for the current BCSD data).
+            outcome = minutes.outcomes.get(ev.code) or minutes.outcomes.get(ev.title)
+        items.append(
+```
+
+to this:
+
+```python
+    # Fallback join index: outcomes keyed by their title with a trailing
+    # parenthetical classifier removed. Built only for keys whose stripped form
+    # is unambiguous (a stripped key shared by two outcomes is excluded, so the
+    # fallback never mis-attaches an outcome to the wrong item).
+    stripped_outcomes = {}
+    if minutes is not None:
+        stripped_counts: dict[str, int] = {}
+        for key in minutes.outcomes:
+            sk = _without_classifier(key)
+            stripped_counts[sk] = stripped_counts.get(sk, 0) + 1
+        stripped_outcomes = {
+            _without_classifier(key): oc
+            for key, oc in minutes.outcomes.items()
+            if stripped_counts[_without_classifier(key)] == 1
+        }
+
+    items: list[ParsedAgendaItem] = []
+    for ev in event_items:
+        outcome = None
+        if minutes is not None:
+            # Exact join by code, then by title; finally a classifier-stripped
+            # fallback (the minutes/event parsers strip trailing "(...)" markers
+            # inconsistently). Two code-less items sharing a title still shadow
+            # each other (a known, low-risk limitation for the current BCSD data).
+            outcome = (
+                minutes.outcomes.get(ev.code)
+                or minutes.outcomes.get(ev.title)
+                or stripped_outcomes.get(_without_classifier(ev.title))
+            )
+        items.append(
+```
+
+(Leave the `ParsedAgendaItem(...)` construction that follows unchanged.)
+
+- [ ] **Step 4: Run the new tests and CONFIRM THEY PASS**
+
+Run: `uv run pytest catalog/tests/test_bcsd_adapter.py::test_without_classifier_strips_trailing_parenthetical catalog/tests/test_bcsd_adapter.py::test_join_tolerates_classifier_suffix_asymmetry -v`
+Expected: both PASS.
+
+- [ ] **Step 5: Run the adapter + command test modules to confirm no regression**
+
+Run: `uv run pytest catalog/tests/test_bcsd_adapter.py catalog/tests/test_ingest_bcsd_command.py catalog/tests/test_bcsd_minutes_md.py -v`
+Expected: ALL pass. The fallback is additive (only consulted when the exact code/title lookups both miss) and ambiguity-guarded, so existing joins are unchanged. If any existing test fails, STOP and report BLOCKED.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add catalog/ingest/bcsd/adapter.py catalog/tests/test_bcsd_adapter.py
+git commit -m "fix(ingest): join votes across minutes/event classifier-suffix asymmetry"
+```
+
+---
+
+### Task 6B: Archive-wide regression sweep (local; skipped when archive absent)
 
 **Files:**
 - Create: `catalog/tests/test_minutes_archive_sweep.py`
@@ -489,7 +636,7 @@ from unittest import mock
 import pytest
 
 from catalog.ingest.bcsd import adapter as bcsd_adapter
-from catalog.ingest.bcsd.adapter import parse_meeting_folder
+from catalog.ingest.bcsd.adapter import _without_classifier, parse_meeting_folder
 from catalog.ingest.bcsd.minutes_md import parse_minutes_md
 
 _ARCHIVE = Path(__file__).resolve().parents[2] / "archive_data" / "bcsd" / "BCSD_BOE_MEETINGS"
@@ -519,14 +666,17 @@ def test_no_meeting_has_duplicate_or_dropped_votes():
                     dup_items.append((folder.name, item.code or item.title))
 
             # (2) No vote-bearing minutes outcome may fail to join an event item
-            # (which would silently drop those votes).
+            # (which would silently drop those votes). Mirror the adapter's join:
+            # an outcome key matches by exact code/title OR by classifier-stripped
+            # title (the adapter's fallback), so compare both forms on both sides.
             mins = parse_minutes_md((folder / "minutes.md").read_text(encoding="utf-8"))
             joined = set()
             for item in parsed.agenda_items:
                 joined.add(item.code)
                 joined.add(item.title)
+                joined.add(_without_classifier(item.title))
             for key, oc in mins.outcomes.items():
-                if oc.votes and key not in joined:
+                if oc.votes and key not in joined and _without_classifier(key) not in joined:
                     dropped.append((folder.name, key, len(oc.votes)))
 
     assert not dup_items, f"duplicate-voter items: {dup_items[:10]}"
