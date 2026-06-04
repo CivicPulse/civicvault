@@ -98,6 +98,8 @@ class AgendaItem(TimeStamped):
     outcome_status = models.CharField(
         max_length=16, choices=OutcomeStatus.choices, default=OutcomeStatus.NONE
     )
+    amount = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    amount_text = models.CharField(max_length=255, blank=True)
 
     class Meta:
         ordering = ["meeting", "order"]
