@@ -169,8 +169,11 @@ def test_adapter_carries_cue_anchored_amount_through_join(tmp_path):
     fss3 = by_code["FSS-3"]
     assert fss3.amount == Decimal("5515711.09")
     assert "not to exceed $5,515,711.09" in fss3.amount_text
-    # An item whose outcome states no contract-cued figure carries no amount.
-    assert all(it.amount is None for it in pm.agenda_items if it.code and not it.amount_text)
+    # FSS-11 has a real outcome (a Lease Agreement resolution) that states no
+    # contract-amount cue, so it must carry no amount.
+    assert by_code["FSS-11"].outcome_text != ""
+    assert by_code["FSS-11"].amount is None
+    assert by_code["FSS-11"].amount_text == ""
 
 
 def test_fallback_skips_when_two_event_items_share_stripped_title(tmp_path):
