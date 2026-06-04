@@ -198,6 +198,8 @@ def load_meeting(parsed: ParsedMeeting, *, source, jurisdiction, body) -> Meetin
             reading_stage=_READING.get(pitem.reading_stage, ""),
             outcome_text=pitem.outcome_text,
             outcome_status=_OUTCOME.get(pitem.outcome_status, AgendaItem.OutcomeStatus.NONE),
+            amount=pitem.amount,
+            amount_text=pitem.amount_text,
         )
         item_by_code[pitem.code] = item
         for pm in pitem.motions:

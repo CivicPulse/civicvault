@@ -1,5 +1,6 @@
 import dataclasses
 import datetime
+from decimal import Decimal
 
 import pytest
 from django.contrib.postgres.search import SearchQuery
@@ -439,3 +440,37 @@ def test_load_recording_requires_youtube_id(context):
     rec = dataclasses.replace(_recording(), youtube_id="")
     with pytest.raises(ValueError, match="non-empty youtube_id"):
         load_recording(rec, [], source=source)
+
+
+@pytest.mark.django_db
+def test_loader_persists_agenda_item_amount(context):
+    jur, source, body = context
+    parsed = ParsedMeeting(
+        date=datetime.date(2025, 5, 15),
+        start_time=None,
+        kind_slug="committee-meeting",
+        source_meeting_id="mid-amount-1",
+        source_url="",
+        source_path="",
+        folder_name="2025-05-15_committee_mid-amount-1",
+        title="Committee Meeting",
+        agenda_items=(
+            ParsedAgendaItem(
+                order=1,
+                code="FSS-9",
+                title="Renewal of Amira Learning",
+                item_type="action",
+                reading_stage="",
+                section="V. FISCAL",
+                outcome_text="in an amount not to exceed $255,300.00",
+                outcome_status="unanimous",
+                amount=Decimal("255300.00"),
+                amount_text="in an amount not to exceed $255,300.00",
+            ),
+        ),
+        has_minutes=True,
+    )
+    load_meeting(parsed, source=source, jurisdiction=jur, body=body)
+    item = AgendaItem.objects.get(code="FSS-9")
+    assert item.amount == Decimal("255300.00")
+    assert item.amount_text == "in an amount not to exceed $255,300.00"
