@@ -33,3 +33,10 @@ After merging a feature branch into `main` (or committing directly to `main`) lo
 Never force-push to the remote.
 
 use agent teams where appropriate to minimize context window usage and maximize parallelism (for speed).
+
+## Design context
+
+Frontend/UI work has two root context files; read them before designing or building any screen:
+
+- `PRODUCT.md` — strategic. Register is **product** (design serves the task). Users are anonymous public (residents, journalists, researchers). Guiding principle: **provenance** — every fact links to its source. Accessibility bar: **WCAG 2.2 AA** with dark-surface contrast care.
+- `DESIGN.md` — visual system (currently a `<!-- SEED -->`; re-run `/impeccable document` once there's real CSS to capture tokens). North Star: **"The Open Dossier"** — an intelligence-database feel for the *public* record. Cold **Signal Cyan on near-black** (committed dark surface, one accent), **grotesk for prose + mono for data** (IDs, timestamps, dollar amounts, vote tallies, citations), responsive-but-restrained motion. The relationship graph is the signature component. NOT SaaS-startup, NOT literal redaction theater (no CLASSIFIED stamps/redaction bars), NOT dreary gov-portal, NOT Hollywood-HUD cosplay.
