@@ -19,6 +19,7 @@ def test_canonicalize_strips_renewal_and_contract_tails():
     assert canonicalize_org_name("Imagine Learning - FY24 Renewal") == "Imagine Learning"
     assert canonicalize_org_name("Renaissance Star 360 - Contract") == "Renaissance Star 360"
     assert canonicalize_org_name("Amira Learning FY23 Renewal") == "Amira Learning"
+    assert canonicalize_org_name("Amira Learning FY Renewal") == "Amira Learning"
 
 
 def test_canonicalize_strips_leading_approval_or_renewal():

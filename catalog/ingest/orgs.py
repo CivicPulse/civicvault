@@ -12,7 +12,7 @@ import re
 
 _LEADING = re.compile(r"^(?:approval\s+of|renewal\s+of)\s+", re.IGNORECASE)
 _TRAILING = re.compile(
-    r"\s*[-–]\s*(?:contract|fy\s*\d*\s*renewal)\s*$|\s*fy\s*\d+\s*renewal\s*$",
+    r"\s*[-–]\s*(?:contract|fy\s*\d*\s*renewal)\s*$|\s*fy\s*\d*\s*renewal\s*$",
     re.IGNORECASE,
 )
 _SUFFIX = re.compile(
