@@ -25,3 +25,16 @@ def test_bucket_set_uses_r2_s3_backend():
     assert opts["addressing_style"] == "path"  # R2-correct; guards the value
     assert opts["default_acl"] is None
     assert opts["querystring_auth"] is False
+    # No custom domain unless one is supplied.
+    assert "custom_domain" not in opts
+
+
+def test_custom_domain_sets_public_read_host():
+    storages = build_storages(
+        bucket="civicvault-media",
+        endpoint_url="https://acct.r2.cloudflarestorage.com",
+        access_key="AK",
+        secret_key="SK",
+        custom_domain="data.civpulse.org",
+    )
+    assert storages["default"]["OPTIONS"]["custom_domain"] == "data.civpulse.org"

@@ -147,6 +147,9 @@ STORAGES = build_storages(
     endpoint_url=env("R2_ENDPOINT_URL", default=""),
     access_key=env("R2_ACCESS_KEY_ID", default=""),
     secret_key=env("R2_SECRET_ACCESS_KEY", default=""),
+    # Public hostname fronting the bucket (Cloudflare). Makes storage.url()
+    # return the cached, publicly fetchable address for media.
+    custom_domain=env("R2_CUSTOM_DOMAIN", default=""),
 )
 
 # Default primary key field type
