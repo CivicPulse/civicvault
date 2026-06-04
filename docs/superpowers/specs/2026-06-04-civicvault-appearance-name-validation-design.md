@@ -94,20 +94,44 @@ def looks_like_name(text: str) -> bool:
 
 - **Visitor:** drop the loose `("#", "-", "The ", "_")` prefix heuristic to a structural-only guard (`("#", "-")`) and append only when `looks_like_name(normalize_name(line))`. The predicate subsumes the "The …:" lead-in (terminal colon) and all prose.
 - **Pledge:** append only when `looks_like_name(normalize_name(rest))`.
-- **Invocation:** new helper
+- **Invocation:** new helper `_resolve_apposition_name`. **Corpus finding (revised after archive-wide verification):** the BCSD invocation lines are far richer than `Reverend Name, Church`. They include **title-case role descriptors** that a plain "first name-shaped segment wins" rule resolves *to the role* — fabricating a person and dropping the real one:
+  - `Lead Pastor, Harold Clark, Abundant Life Church` → must yield **Harold Clark**, not "Lead Pastor".
+  - `Board President, Ms. Lester` → **Lester**, not "Board President".
+  - `Board member Dr. Juawn Jackson` (no comma) → **Juawn Jackson** (must strip the role prefix, not drop).
+  - `Minister Calla Busby`, `Father Bill McIntyre, OFM, …` → **Calla Busby** / **Bill McIntyre** (religious titles beyond the existing `_TITLE` set).
+  - Already-correct cases that must stay correct: bare names (`Barney Hester`, `Lester Miller`), `Reverend Kenneth Moye, <church>` → Kenneth Moye, `Frank Tompkins, president of …` → Frank Tompkins.
+
+  The fix strips **leading role/title tokens** from each comma-segment, then validates with `looks_like_name`:
   ```python
+  _ROLE_TOKENS = {  # lowercase, punctuation-stripped; honorifics + religious + position roles
+      "mr","mrs","ms","dr","miss","rev","reverend","reverand","pastor","minister","father",
+      "deacon","bishop","elder","rabbi","president","vice","board","lead","senior",
+      "superintendent","attorney","chair","chairman","chairwoman","chairperson","commissioner",
+      "director","manager","general","officer","mayor","judge","coach","councilman",
+      "councilwoman","councilmember","member","associate","executive","interim","assistant",
+      "deputy","the","of","a","an",
+  }
+
+  def _strip_leading_roles(text: str) -> str:
+      toks = text.split()
+      i = 0
+      while i < len(toks) and re.sub(r"[^a-z]", "", toks[i].lower()) in _ROLE_TOKENS:
+          i += 1
+      return " ".join(toks[i:]).strip(" .,")
+
   def _resolve_apposition_name(raw: str) -> str:
-      """From an invocation 'given by X' string, return the first comma-segment that
-      normalizes to a name-shaped value, else "". Recovers 'Juawn Jackson' from
-      'Board member, Dr. Juawn Jackson'; keeps 'Kenneth Moye' from 'Reverend Kenneth
-      Moye, <church>'."""
+      """Return the first comma-segment that, after stripping leading role/title tokens,
+      is a name-shaped value, else "". Recovers the real person from role-first appositions
+      ('Lead Pastor, Harold Clark' -> 'Harold Clark'; 'Board member Dr. Juawn Jackson' ->
+      'Juawn Jackson') and keeps simple cases ('Reverend Kenneth Moye, <church>' ->
+      'Kenneth Moye'). Never emits a pure role descriptor as a person."""
       for seg in raw.split(","):
-          name = normalize_name(seg)
-          if looks_like_name(name):
-              return name
+          cand = _strip_leading_roles(normalize_name(seg))
+          if looks_like_name(cand):
+              return cand
       return ""
   ```
-  Append the invocation appearance only when the resolved name is non-empty; `ParsedPerson.raw_name` retains the full original string for provenance.
+  Append the invocation appearance only when the resolved name is non-empty; `ParsedPerson.raw_name` retains the full original string for provenance. **Conservative by design:** ambiguous "Title Name of Church" lines with no comma (e.g. `Pastor Bo Turner of Real Life Church`) resolve to `""` (dropped) rather than risk a wrong name — acceptable because invocation-givers are ceremonial, low-value, and a *false* person is worse than a missing one. This logic stays in the invocation path; shared `normalize_name`/roster parsing is untouched.
 
 ## Component C — `prune_orphans` (`catalog/management/commands/prune_orphans.py`)
 
@@ -127,7 +151,7 @@ By construction an orphan has no connecting facts, so deletion strands nothing (
 **Unit — `_parse_appearances` against real fixture text (`catalog/tests/test_bcsd_minutes_md.py`, new fixtures grounded in the meetings above):**
 - Visitor prose block → **0** speakers; the named block ("Attorney Roy Miller" / "Jessican Strohmetz") → **2** speakers ("Roy Miller", "Jessican Strohmetz").
 - Pledge award-title header → **0** pledge appearances; a plain-name pledge sub-item → 1.
-- Invocation "Board member, Dr. Juawn Jackson" → one invocation appearance "Juawn Jackson"; "Reverend Kenneth Moye, <church>" → "Kenneth Moye"; an all-prose invocation tail → none.
+- Invocation, grounded in real archive lines: "Board member, Dr. Juawn Jackson" **and** the no-comma "Board member Dr. Juawn Jackson" → "Juawn Jackson"; "Lead Pastor, Harold Clark, Abundant Life Church" → "Harold Clark" (role descriptor never emitted); "Board President, Ms. Lester" → "Lester"; "Minister Calla Busby, House of Hope Macon" → "Calla Busby"; "Reverend Kenneth Moye, <church>" → "Kenneth Moye"; a bare name "Barney Hester" → "Barney Hester"; an all-prose tail ("a member of the community") → none.
 
 **Command — `prune_orphans` (`tests/test_prune_orphans.py`, alongside the other management-command tests):**
 - An orphan Person (no facts) and an orphan vendor Org (no relationships) are deleted under `--apply`.
