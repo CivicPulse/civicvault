@@ -8,6 +8,7 @@ String enum values mirror the model TextChoices values (e.g. "yea", "action",
 
 import datetime
 from dataclasses import dataclass
+from decimal import Decimal
 
 
 @dataclass(frozen=True)
@@ -51,6 +52,8 @@ class ParsedAgendaItem:
     section: str
     outcome_text: str = ""
     outcome_status: str = "none"
+    amount: Decimal | None = None
+    amount_text: str = ""
     motions: tuple[ParsedMotion, ...] = ()
     votes: tuple[ParsedVote, ...] = ()
     file_names: tuple[str, ...] = ()
