@@ -39,9 +39,8 @@ def _make_relationship(subject, obj, predicate, **kwargs):
         **kwargs,
     )
 
-GRAPH_DATA_RE = re.compile(
-    r'id="graph-data" type="application/json">(.*?)</script>', re.S
-)
+
+GRAPH_DATA_RE = re.compile(r'id="graph-data" type="application/json">(.*?)</script>', re.S)
 
 
 def _graph_payload(client):
@@ -153,9 +152,7 @@ def test_unreviewed_entities_are_gated_out(client, seeded):
 def test_no_edge_from_unreviewed_vote(client, seeded):
     _resp, data = _graph_payload(client)
     hidden_id = f"person-{seeded['hidden'].pk}"
-    touching_hidden = [
-        e for e in data["edges"] if hidden_id in (e["source"], e["target"])
-    ]
+    touching_hidden = [e for e in data["edges"] if hidden_id in (e["source"], e["target"])]
     assert touching_hidden == []
 
 

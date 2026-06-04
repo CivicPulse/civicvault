@@ -153,7 +153,9 @@ def test_command_ingests_nested_personnel_without_duplicate_votes(tmp_path):
     assert Vote.objects.filter(agenda_item=ps2).count() == 5
 
     # Executive Session keeps its motions and carries NO votes.
-    exec_item = AgendaItem.objects.get(meeting=meeting, title="Executive Session for Personnel Matters")
+    exec_item = AgendaItem.objects.get(
+        meeting=meeting, title="Executive Session for Personnel Matters"
+    )
     assert Vote.objects.filter(agenda_item=exec_item).count() == 0
     assert Motion.objects.filter(agenda_item=exec_item).count() == 2
 

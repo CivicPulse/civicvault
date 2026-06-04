@@ -126,9 +126,7 @@ def home(request):
     jurisdictions = []
     for j in Jurisdiction.objects.annotate(n_meetings=Count("meetings", distinct=True)):
         n_docs = (
-            Document.objects.filter(
-                Q(meeting__jurisdiction=j) | Q(source__jurisdiction=j)
-            )
+            Document.objects.filter(Q(meeting__jurisdiction=j) | Q(source__jurisdiction=j))
             .distinct()
             .count()
         )
@@ -319,9 +317,7 @@ def graph(request):
         n_orgs = Organization.objects.filter(jurisdiction=j, reviewed=True).count()
         n_meetings = Meeting.objects.filter(jurisdiction=j).count()
         n_people = (
-            Person.objects.filter(
-                reviewed=True, appearances__meeting__jurisdiction=j
-            )
+            Person.objects.filter(reviewed=True, appearances__meeting__jurisdiction=j)
             .distinct()
             .count()
         )
@@ -416,7 +412,7 @@ def graph(request):
     for (body_pk, vendor_pk), rows in contracts.items():
         if body_pk not in org_ids or vendor_pk not in org_ids:
             continue
-        rows.sort(key=lambda r: (r["amount"] or Decimal(0)), reverse=True)
+        rows.sort(key=lambda r: r["amount"] or Decimal(0), reverse=True)
         total = sum((r["amount"] or Decimal(0)) for r in rows)
         n = len(rows)
         detail = [
@@ -459,8 +455,8 @@ def graph(request):
     for row in Motion.objects.filter(reviewed=True, moved_by__isnull=False).values("moved_by"):
         moved[row["moved_by"]] += 1
     seconded = defaultdict(int)
-    for row in (
-        Motion.objects.filter(reviewed=True, seconded_by__isnull=False).values("seconded_by")
+    for row in Motion.objects.filter(reviewed=True, seconded_by__isnull=False).values(
+        "seconded_by"
     ):
         seconded[row["seconded_by"]] += 1
 

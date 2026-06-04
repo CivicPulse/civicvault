@@ -26,9 +26,7 @@ class Relationship(Reviewable):
         DONATES_TO = "donates_to", "Donates to"
         AFFILIATED_WITH = "affiliated_with", "Affiliated with"
 
-    subject_ct = models.ForeignKey(
-        ContentType, on_delete=models.CASCADE, related_name="+"
-    )
+    subject_ct = models.ForeignKey(ContentType, on_delete=models.CASCADE, related_name="+")
     subject_id = models.PositiveBigIntegerField()
     subject = GenericForeignKey("subject_ct", "subject_id")
 

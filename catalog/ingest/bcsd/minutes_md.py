@@ -151,13 +151,13 @@ def parse_minutes_md(text: str) -> ParsedMinutes:
             if s.startswith("### "):
                 break
             block_lines.append(body[j])
-        # NOTE — consent-anchor attachment: when the source records the en-bloc
-        # consent-agenda roll call inside the *first* sub-item block (e.g. "#### i.
-        # Confirmation of Minutes"), those votes are attached only to that one
-        # AgendaItem, NOT to each individually approved item in the consent block.
-        # As a result, a query like "how did X vote on FSS-3" will find no Vote row
-        # even though FSS-3 was approved in that en-bloc roll call. This faithfully
-        # reflects the source layout and is a known limitation (see HANDOFF.md).
+        # NOTE — header depth: every "#{4,} <ordinal>. ..." line (including
+        # MultiMarkdown escaped ordinals like "1\.") is its own item, so each
+        # leaf sub-item owns its roll call and joins to its event.md counterpart
+        # by code/title. A *genuine* consent-agenda anchor — one roll call that
+        # approves several items en bloc under a single header — is still
+        # attached only to that anchor item; that faithfully reflects the source
+        # and is the intended behavior, not the duplicate-vote bug this fixed.
 
         rest = html.unescape(_ITEM_HEADER.match(header)["rest"])
         code_m = _CODE.search(rest)
