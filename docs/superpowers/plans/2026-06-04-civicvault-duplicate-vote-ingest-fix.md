@@ -191,11 +191,13 @@ def test_personnel_five_hash_subitems_separate_roll_calls():
     assert len(exec_item.motions) == 2
     assert exec_item.outcome_status == "unanimous"
 
-    # No agenda item may contain the same voter twice.
-    for oc in parsed.outcomes.values():
-        names = [v.person.full_name for v in oc.votes]
-        assert len(names) == len(set(names)), f"duplicate voter in {oc.code or oc.title!r}"
+    # PS-1 and PS-2 each carry their own single roll call (no duplicate voter).
+    for code in ("PS-1", "PS-2"):
+        names = [v.person.full_name for v in parsed.outcomes[code].votes]
+        assert len(names) == len(set(names)), f"duplicate voter in {code}"
 ```
+
+> Note: the *global* "no duplicate voter in ANY outcome" invariant is asserted in Task 3, not here — PS-3's six-hash escaped-ordinal appointments still merge until Task 3's change, so a global check would fail at this stage. Task 2 only asserts the items its five-hash fix governs.
 
 - [ ] **Step 2: Run test to verify it fails**
 
@@ -265,6 +267,12 @@ def test_personnel_six_hash_escaped_ordinal_appointments_separate():
 
     # PS-3's own block is now empty (its roll calls moved to the appointments).
     assert len(parsed.outcomes["PS-3"].votes) == 0
+
+    # Global invariant — now satisfiable: NO agenda item contains the same voter
+    # twice anywhere in the fixture.
+    for oc in parsed.outcomes.values():
+        names = [v.person.full_name for v in oc.votes]
+        assert len(names) == len(set(names)), f"duplicate voter in {oc.code or oc.title!r}"
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
