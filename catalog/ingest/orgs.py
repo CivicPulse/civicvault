@@ -1,7 +1,8 @@
 """Organization-name canonicalization (brief §7, §14.4); mirrors names.py for people.
 
-Pure and Django-free, so it is unit-testable and reusable by both the loader (body
-orgs) and build_relationships (vendor orgs). Deterministic collapses — a normalized
+Pure and Django-free, so it is unit-testable and consumed at the vendor-creation
+site (build_relationships); the body-org loader can adopt it later if a body name
+ever needs it. Deterministic collapses — a normalized
 key match, or a curated alias — are applied at create time and recorded in
 Organization.aka. Fuzzy look-alikes are only *proposed* by propose_collapses(); a
 human promotes accepted pairs into VENDOR_ALIASES, the auditable merge ledger. This
