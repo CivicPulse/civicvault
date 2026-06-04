@@ -1,6 +1,6 @@
 import pytest
 
-from catalog.ingest.names import normalize_name
+from catalog.ingest.names import looks_like_name, normalize_name
 
 
 @pytest.mark.parametrize(
@@ -53,3 +53,40 @@ def test_role_hint_via_split():
     name, role = split_name_and_role("Dr. Henry Ficklin")
     assert name == "Henry Ficklin"
     assert role == ""
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Roy Miller",
+        "Jessican Strohmetz",
+        "Kenneth Moye",
+        "Juawn Jackson",
+        "Henry Ficklin",
+        "Lisa Garrett-Boyd",
+        "Madison Pritchard",
+        "Smith",
+        "John Q. Public",
+        "Maria de la Cruz",
+    ],
+)
+def test_looks_like_name_accepts_real_names(text):
+    assert looks_like_name(text) is True
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Four people addressed the Board for comments.",
+        "They were:",
+        "Two eighth grade students from Miller Middle School congratulated their new principal",
+        "No visitors requested to address the Board.",
+        "There were no requests to address the Board.",
+        "Board member",
+        "Little Miss and Mr. Cherry Blossom Festival 2024: Alexandria Habersham",
+        "",
+        "   ",
+    ],
+)
+def test_looks_like_name_rejects_prose_and_descriptors(text):
+    assert looks_like_name(text) is False

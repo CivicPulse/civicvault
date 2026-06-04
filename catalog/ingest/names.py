@@ -26,6 +26,22 @@ _TITLE = re.compile(
 )
 _WS = re.compile(r"\s+")
 
+_NAME_TOKEN = re.compile(r"^[A-Z][A-Za-z''.-]*$")
+_NAME_PARTICLES = {"de", "van", "von", "der", "da", "del", "la", "di", "bin", "al"}
+
+
+def looks_like_name(text: str) -> bool:
+    """True if text is shaped like a person name: 1–5 tokens, no terminal sentence
+    punctuation, every token Capitalized (or a known nobiliary particle). Rejects
+    prose ("Four people addressed the Board.") and role descriptors ("Board member")."""
+    text = (text or "").strip()
+    if not text or text[-1] in ".:;,":
+        return False
+    toks = text.split()
+    if not (1 <= len(toks) <= 5):
+        return False
+    return all(t.lower() in _NAME_PARTICLES or bool(_NAME_TOKEN.match(t)) for t in toks)
+
 
 def normalize_name(raw: str) -> str:
     """Return a clean display name: no honorific/title, single-spaced, no trailing role."""
