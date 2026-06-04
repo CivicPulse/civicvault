@@ -1,0 +1,32 @@
+# Keep the build context (and image) small and free of secrets/local state.
+
+# Python / venv / caches
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# Local dev data — NOT shipped to the serving image (ingestion is offline)
+archive_data/
+db.sqlite3
+staticfiles/
+
+# Secrets and local config
+.env
+.env.*
+!.env.example
+
+# VCS / tooling / docs
+.git/
+.github/
+.gitignore
+screenshots/
+.playwright-mcp/
+docs/
+tests/
+*.md
+
+# K8s manifests don't belong in the app image
+k8s/
+compose.yaml

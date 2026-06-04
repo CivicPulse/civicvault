@@ -42,6 +42,16 @@ DEBUG = env("DEBUG")
 
 ALLOWED_HOSTS = env("ALLOWED_HOSTS")
 
+# Behind the cloudflared tunnel → Traefik, the pod serves plain HTTP on :80 while
+# TLS terminates at Cloudflare's edge. Trust the proxy's X-Forwarded-Proto so
+# Django knows the original request was HTTPS (correct URL building, secure
+# cookies, CSRF). Traefik sets this header; only trusted proxies reach the pod.
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+# Scheme-qualified origins allowed to send POSTs (admin, forms) through the proxy.
+# Production: CSRF_TRUSTED_ORIGINS=https://vault.civpulse.org
+CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])
+
 
 # Application definition
 
@@ -63,6 +73,9 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    # Serves STATIC_ROOT directly from the app pod (no separate web server /
+    # CDN needed for static assets). Must sit right after SecurityMiddleware.
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -151,6 +164,15 @@ STORAGES = build_storages(
     # return the cached, publicly fetchable address for media.
     custom_domain=env("R2_CUSTOM_DOMAIN", default=""),
 )
+
+# In production (DEBUG off) WhiteNoise serves static assets with content-hashed
+# filenames + compression for far-future caching. This backend needs a manifest
+# built by `collectstatic`, so keep the plain backend in DEBUG (dev/tests) where
+# Django's staticfiles app serves files directly and no manifest exists.
+if not DEBUG:
+    STORAGES["staticfiles"] = {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    }
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/6.0/ref/settings/#default-auto-field
