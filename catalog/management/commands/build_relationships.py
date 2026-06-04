@@ -5,8 +5,9 @@ Two predicates we can prove from what is already ingested:
   * board_member_of — a Person who appears as a *member* of a body (from reviewed
     Appearance rows) is a board member of it; cited to that meeting's minutes.
   * contracts_with — a body's contract/renewal agenda items name a vendor; the
-    body contracts with that vendor, with the dollar amount lifted from the item's
-    outcome text and cited to the meeting's document.
+    body contracts with that vendor, with the dollar amount read from the
+    structured AgendaItem.amount field (captured at ingest) and cited to the
+    meeting's document.
 
 Conservative by design (only clean vendor-name patterns), so it never invents an
 entity it can't point at a source for. Idempotent: it owns a `derived-relationships`
