@@ -22,6 +22,7 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.utils.text import slugify
 
+from catalog.ingest.orgs import canonicalize_org_name, resolve_key
 from catalog.models import (
     AgendaItem,
     Appearance,
@@ -140,15 +141,20 @@ class Command(BaseCommand):
             body = item.meeting.body
             if not name or not (body and body.reviewed):
                 continue
-            vendor, _ = Organization.objects.get_or_create(
-                slug=slugify(name)[:255],
+            display = canonicalize_org_name(name)
+            vendor, created = Organization.objects.get_or_create(
+                slug=slugify(resolve_key(name))[:255],
                 jurisdiction=None,  # vendors are cross-agency by design
                 defaults={
-                    "name": name,
+                    "name": display,
                     "kind": Organization.Kind.COMPANY,
                     "reviewed": review,
                 },
             )
+            # Record a collapsed surface-form variant on the canonical node.
+            if not created and display != vendor.name and display not in vendor.aka:
+                vendor.aka = [*vendor.aka, display]
+                vendor.save(update_fields=["aka"])
             rel = Relationship.objects.create(
                 subject_ct=org_ct,
                 subject_id=body.pk,

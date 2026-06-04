@@ -49,6 +49,11 @@ def corpus(db):
     )
     # a process item that must NOT become a vendor
     AgendaItem.objects.create(meeting=meeting, order=2, title="Approval of Food Bid")
+    # Two surface forms of one vendor: the canonical name and an aliased variant.
+    AgendaItem.objects.create(meeting=meeting, order=3, title="Renewal of School City")
+    AgendaItem.objects.create(
+        meeting=meeting, order=4, title="Renewal of School City Assessment Platform"
+    )
     return {"body": body, "person": person, "meeting": meeting}
 
 
@@ -68,9 +73,10 @@ def test_derives_board_member_with_citation(corpus):
 @pytest.mark.django_db
 def test_derives_vendor_contract_with_amount_and_citation(corpus):
     call_command("build_relationships", review=True)
-    vendor = Organization.objects.filter(kind=Organization.Kind.COMPANY).first()
-    assert vendor is not None and vendor.name == "Amira Learning"
-    rel = Relationship.objects.get(predicate=Relationship.Predicate.CONTRACTS_WITH)
+    vendor = Organization.objects.get(kind=Organization.Kind.COMPANY, name="Amira Learning")
+    rel = Relationship.objects.get(
+        predicate=Relationship.Predicate.CONTRACTS_WITH, object_id=vendor.pk
+    )
     assert rel.subject_id == corpus["body"].pk
     assert rel.object_id == vendor.pk
     assert str(rel.amount) == "255300.00"
@@ -111,5 +117,30 @@ def test_amount_comes_from_structured_field_not_text(corpus):
     item.outcome_text = "Contract in excess of $999,999.00 prohibited. Approved."
     item.save(update_fields=["outcome_text"])
     call_command("build_relationships", review=True)
-    rel = Relationship.objects.get(predicate=Relationship.Predicate.CONTRACTS_WITH)
+    vendor = Organization.objects.get(name="Amira Learning")
+    rel = Relationship.objects.get(
+        predicate=Relationship.Predicate.CONTRACTS_WITH, object_id=vendor.pk
+    )
     assert str(rel.amount) == "255300.00"  # from item.amount, not the $999,999 in text
+
+
+@pytest.mark.django_db
+def test_vendor_variants_collapse_to_one_node_with_aka(corpus):
+    call_command("build_relationships", review=True)
+    school_city = Organization.objects.filter(slug="school-city")
+    assert school_city.count() == 1
+    org = school_city.first()
+    assert org.name == "School City"
+    assert "School City Assessment Platform" in org.aka
+
+
+@pytest.mark.django_db
+def test_collapsed_vendor_has_one_contract_edge_per_item(corpus):
+    # Two agenda items naming the same (collapsed) vendor -> two contract edges that
+    # both point at the single vendor node (the items are distinct contract actions).
+    call_command("build_relationships", review=True)
+    org = Organization.objects.get(slug="school-city")
+    edges = Relationship.objects.filter(
+        predicate=Relationship.Predicate.CONTRACTS_WITH, object_id=org.pk
+    )
+    assert edges.count() == 2
