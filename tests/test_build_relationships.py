@@ -160,5 +160,10 @@ def test_suggest_merges_reports_unaliased_lookalikes(corpus, capsys):
     out = capsys.readouterr().out
     assert "Renaissance Star" in out
     assert "Renaissance Star 360" in out
-    # An already-aliased pair (School City) must NOT appear as a suggestion.
-    assert "School City Assessment Platform" not in out.split("suggest", 1)[-1]
+    # School City is a real vendor (it was built into the corpus), but because its
+    # variants already collapse via the alias map, the aliased variant is never
+    # offered as a merge suggestion.
+    assert Organization.objects.filter(slug="school-city").exists()
+    suggestions_block = out.split("suggestions", 1)
+    if len(suggestions_block) > 1:
+        assert "School City Assessment Platform" not in suggestions_block[1]

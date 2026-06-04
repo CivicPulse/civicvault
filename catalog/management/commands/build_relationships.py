@@ -193,8 +193,12 @@ class Command(BaseCommand):
             )
             proposals = propose_collapses(vendor_names)
             if proposals:
-                self.stdout.write("Vendor-merge suggestions (review, then add to VENDOR_ALIASES):")
+                self.stdout.write(
+                    self.style.WARNING(
+                        "Vendor-merge suggestions (review, then add to VENDOR_ALIASES):"
+                    )
+                )
                 for a, b, score in sorted(proposals, key=lambda p: -p[2]):
                     self.stdout.write(f"  [{score:.2f}] {a!r}  ≈  {b!r}")
             else:
-                self.stdout.write("No vendor-merge suggestions.")
+                self.stdout.write(self.style.WARNING("No vendor-merge suggestions."))
