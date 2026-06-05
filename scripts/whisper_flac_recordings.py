@@ -34,6 +34,16 @@ from django.core.management import call_command  # noqa: E402
 REC_DIR = ROOT / "archive_data" / "bcsd" / "BCSD_MEETING_RECORDINGS"
 FIRST_YEAR = 2022
 
+# Recordings to skip, keyed by YouTube id (a substring of the .info.json name).
+# b_mXGkrYIznfU is a ~12h livestream outlier — far longer than any real meeting;
+# transcribing it would dominate the run and yield an unwieldy transcript. It
+# stays ingested as media + coverage (no transcript segments).
+SKIP_IDS = {"b_mXGkrYIznfU"}
+
+
+def _is_skipped(info: Path) -> bool:
+    return any(sid in info.name for sid in SKIP_IDS)
+
 
 def _flac_only_infos():
     """Recordings 2022+ that have a .flac sibling but no .vtt (whisper needed)."""
@@ -51,6 +61,10 @@ def _flac_only_infos():
 
 def main():
     infos = _flac_only_infos()
+    skipped = [j for j in infos if _is_skipped(j)]
+    infos = [j for j in infos if not _is_skipped(j)]
+    for j in skipped:
+        print(f"  [skip] {j.name[:60]}… (in SKIP_IDS)", flush=True)
     total = len(infos)
     print(f"== whisper: {total} flac-only recordings to transcribe ==", flush=True)
     ok = fail = 0
