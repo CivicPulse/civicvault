@@ -17,18 +17,47 @@ The manifests here cover the in-cluster resources. Three things are applied
 
 ## 1. Provision the database (managed Postgres `db-postgresql-atl1-25905`)
 
+`doctl` database subcommands take the cluster **ID**, not the name.
+
 ```bash
-DB=db-postgresql-atl1-25905
-doctl databases db create   "$DB" civicvault
-doctl databases user create "$DB" civicvault            # prints the password
-# Allow the cluster's nodes to reach the DB (add k8s cluster as a trusted source):
-doctl databases firewalls append "$DB" --rule k8s:c3d2cdbc-e377-4ef8-9a39-82062e4b69c3
-# Connection details (host, port 25060, sslmode=require):
-doctl databases connection "$DB" --format Host,Port,User,Database
+DBID=0025a591-b2ae-40c3-81c0-c4cabae3503a   # db-postgresql-atl1-25905
+doctl databases db create   "$DBID" civicvault
+doctl databases user create "$DBID" civicvault          # creates the user
+doctl databases user get    "$DBID" civicvault --format Name,Password   # reveal password
+doctl databases connection  "$DBID" --format Host,Port  # host, port 25060
+```
+
+> ⚠️ **Do NOT touch the firewall / trusted sources.** This instance is shared by
+> several apps and its trusted-sources list is intentionally empty (= accept
+> from anywhere, auth + SSL still required). Adding a trusted source would flip
+> it to allowlist-only and cut off every other app. The cluster already has
+> connectivity.
+
+Then, as `doadmin`, grant ownership so Django can migrate and pre-create the
+extensions (only `doadmin` may create them; the migration's
+`CREATE EXTENSION IF NOT EXISTS` then becomes a no-op):
+
+```bash
+ADMIN_URI=$(doctl databases connection "$DBID" --format URI --no-header)
+psql "$(echo "$ADMIN_URI" | sed 's#/defaultdb?#/civicvault?#')" <<'SQL'
+GRANT civicvault TO doadmin;
+ALTER DATABASE civicvault OWNER TO civicvault;
+ALTER SCHEMA public OWNER TO civicvault;
+GRANT ALL ON SCHEMA public TO civicvault;
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+CREATE EXTENSION IF NOT EXISTS unaccent;
+SQL
 ```
 
 Assemble `DATABASE_URL`:
 `postgres://civicvault:<password>@<host>:25060/civicvault?sslmode=require`
+
+Apply migrations (offline workflow — run locally against the managed DB):
+
+```bash
+DATABASE_URL='postgres://civicvault:<password>@<host>:25060/civicvault?sslmode=require' \
+  DEBUG=False uv run python manage.py migrate --noinput
+```
 
 ## 2. Create the Secret (real values — do NOT commit)
 
@@ -49,10 +78,18 @@ kubectl create secret generic civicvault-secrets -n civicvault \
 
 ## 3. Deploy the app
 
+The image package must be **public** for the cluster to pull it (the manifests
+use no imagePullSecret). New GHCR packages default to private — flip it once at
+`https://github.com/orgs/CivicPulse/packages/container/civicvault/settings`
+(Danger Zone → Change visibility → Public). This is UI-only; there's no REST
+endpoint for it.
+
 ```bash
-# From repo root. Set the image tag CI built, then apply.
-( cd k8s && kustomize edit set image ghcr.io/civicpulse/civicvault=ghcr.io/civicpulse/civicvault:sha-<sha> )
-kubectl apply -k k8s/
+# Pin the image tag and apply. If the standalone `kustomize` binary isn't
+# installed (only kubectl's built-in kustomize is), pin via sed instead:
+SHA=sha-<sha>
+sed "s#civicvault:latest#civicvault:${SHA}#g" k8s/deployment.yaml | kubectl apply -f -
+kubectl apply -f k8s/namespace.yaml -f k8s/serviceaccount.yaml -f k8s/service.yaml -f k8s/ingressroute.yaml
 kubectl rollout status deploy/civicvault -n civicvault
 ```
 
