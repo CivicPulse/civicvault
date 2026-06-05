@@ -127,10 +127,40 @@ kubectl logs deploy/civicvault -n civicvault
 curl -fsS https://vault.civpulse.org/healthz/      # {"status": "ok"}
 ```
 
+## 6. Import catalog data (offline → prod)
+
+Ingestion is an offline workflow: run it locally with `DATABASE_URL` pointed at
+the managed DB. Media already lives in the shared R2 bucket (`civpulse-data`),
+so importing moves only DB rows.
+
+```bash
+PROD='postgres://civicvault:<pw>@<host>:25060/civicvault?sslmode=require'
+
+# (a) Copy an already-curated year from another DB (e.g. dev), preserving rows.
+#     Exports a self-consistent subgraph with natural FKs, minus search_vector
+#     (trigger-managed) and Relationship rows (re-derived below).
+DATABASE_URL=<source> uv run python scripts/export_year.py 2025 /tmp/export_2025.json
+DATABASE_URL="$PROD" DEBUG=False uv run python manage.py loaddata /tmp/export_2025.json
+DATABASE_URL="$PROD" DEBUG=False uv run python manage.py sqlsequencereset catalog \
+  | DATABASE_URL="$PROD" DEBUG=False uv run python manage.py dbshell   # reset seqs
+
+# (b) Ingest a fresh year straight into prod (one meeting folder per call).
+for f in archive_data/bcsd/BCSD_BOE_MEETINGS/2026/*/*/; do
+  DATABASE_URL="$PROD" DEBUG=False uv run python manage.py ingest_bcsd "$f"
+done
+
+# (c) Derive graph edges across ALL loaded data; --review marks them reviewed=True
+#     (the /graph view gates on reviewed). Deterministic, so safe to re-run.
+DATABASE_URL="$PROD" DEBUG=False uv run python manage.py build_relationships --review
+```
+
+> R2 media: only `r2_key` rows move (the bytes are already in the bucket). For
+> media links to load in the browser, the **`data.civpulse.org` R2 custom domain
+> must allow public access** (Cloudflare R2 → bucket → Settings) — otherwise it
+> returns 403.
+
 ## Notes
 
 - **Scaling > 1 replica:** move the `migrate` initContainer to a pre-deploy Job
   to avoid concurrent migrations.
-- **Data ingestion** stays offline: run `manage.py ingest_*` / `build_relationships`
-  locally with `DATABASE_URL` pointed at the managed DB.
 - **Admin user:** `kubectl exec deploy/civicvault -n civicvault -it -- python manage.py createsuperuser`.
