@@ -85,6 +85,42 @@ clashing with a host-installed Postgres). The container preloads the
 
 If `DATABASE_URL` is unset, Django falls back to a local SQLite file.
 
+### Transcription (optional, GPU-accelerated)
+
+Meeting-video transcripts power transcript search. When a recording ships a
+`.vtt`, ingestion uses it directly; when it only has audio, `ingest_recording
+--whisper` transcribes the FLAC with
+[faster-whisper](https://github.com/SYSTRAN/faster-whisper). Whisper lives in the
+`ingest` dependency group, which isn't installed by default:
+
+```bash
+# CPU — works anywhere, but slow (~10–30 min per multi-hour recording).
+uv run --group ingest python manage.py ingest_recording <path/to/.info.json> --whisper
+```
+
+On an NVIDIA GPU, transcription runs in seconds instead of minutes. The optional
+`gpu` group supplies the CUDA 12 runtime as pip wheels (`nvidia-cublas-cu12`,
+`nvidia-cudnn-cu12`) — **no system CUDA toolkit needed**, just a driver new enough
+for CUDA 12 (`nvidia-smi` reports the supported version, top-right):
+
+```bash
+# GPU — add the gpu group; everything else is identical.
+uv run --group ingest --group gpu python manage.py ingest_recording <path/to/.info.json> --whisper
+```
+
+How it works: `catalog/ingest/transcribe.py` preloads the wheels' libraries so
+CTranslate2 resolves them without `LD_LIBRARY_PATH` or a system CUDA install, and
+**falls back to CPU automatically** if the CUDA runtime can't load (a GPU can be
+present while its libs aren't). The CUDA wheels are deliberately kept out of the
+`ingest` group, so CI and the production image (`uv sync --no-dev`) never pull the
+~1.2 GB they'd never use.
+
+To backfill every audio-only recording (2022 onward) in one pass:
+
+```bash
+uv run --group ingest --group gpu python scripts/whisper_flac_recordings.py
+```
+
 ---
 
 ## Documentation
