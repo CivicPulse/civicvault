@@ -69,6 +69,11 @@ spec:
             httpGet:
               path: /healthz/
               port: http
+              # Probes hit the pod by IP; present the expected Host so Django's
+              # ALLOWED_HOSTS check passes (otherwise /healthz/ returns 400).
+              httpHeaders:
+                - name: Host
+                  value: vault.civpulse.org
             failureThreshold: 30
             periodSeconds: 10
             timeoutSeconds: 5
@@ -76,6 +81,11 @@ spec:
             httpGet:
               path: /healthz/
               port: http
+              # Probes hit the pod by IP; present the expected Host so Django's
+              # ALLOWED_HOSTS check passes (otherwise /healthz/ returns 400).
+              httpHeaders:
+                - name: Host
+                  value: vault.civpulse.org
             periodSeconds: 30
             timeoutSeconds: 5
             failureThreshold: 3
@@ -83,6 +93,11 @@ spec:
             httpGet:
               path: /healthz/
               port: http
+              # Probes hit the pod by IP; present the expected Host so Django's
+              # ALLOWED_HOSTS check passes (otherwise /healthz/ returns 400).
+              httpHeaders:
+                - name: Host
+                  value: vault.civpulse.org
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 3
