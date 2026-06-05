@@ -1,0 +1,20 @@
+# Traefik per-host route. Traffic path:
+#   Cloudflare edge → cloudflared tunnel → Traefik (web entrypoint) → this route
+# The cloudflared-config ConfigMap must also route vault.civpulse.org (or
+# *.civpulse.org) to Traefik — see k8s/README.md.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: civicvault
+  namespace: civicvault
+  labels:
+    app.kubernetes.io/name: civicvault
+spec:
+  entryPoints:
+    - web
+  routes:
+    - kind: Rule
+      match: Host(`vault.civpulse.org`)
+      services:
+        - name: civicvault
+          port: 80

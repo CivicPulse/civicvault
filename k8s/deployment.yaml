@@ -1,0 +1,128 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: civicvault
+  namespace: civicvault
+  labels:
+    app.kubernetes.io/name: civicvault
+spec:
+  replicas: 1
+  # Recreate (not RollingUpdate): a single replica owning one DB schema; the
+  # migrate initContainer should run to completion before the new pod serves.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: civicvault
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: civicvault
+    spec:
+      serviceAccountName: civicvault
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      # Apply schema migrations before the web container starts. Idempotent;
+      # ties the migration to the exact image being rolled out. (If you scale
+      # replicas > 1, move this to a pre-deploy Job to avoid concurrent migrate.)
+      initContainers:
+        - name: migrate
+          image: ghcr.io/civicpulse/civicvault:latest
+          imagePullPolicy: IfNotPresent
+          command: ["python", "manage.py", "migrate", "--noinput"]
+          envFrom:
+            - secretRef:
+                name: civicvault-secrets
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "128Mi"
+            limits:
+              memory: "256Mi"
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      containers:
+        - name: civicvault
+          image: ghcr.io/civicpulse/civicvault:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          envFrom:
+            - secretRef:
+                name: civicvault-secrets
+          # Liveness: process is up (does NOT touch the DB, by design — see the
+          # health view). Startup gives the app up to 5 min to boot.
+          startupProbe:
+            httpGet:
+              path: /healthz/
+              port: http
+              # Probes hit the pod by IP; present the expected Host so Django's
+              # ALLOWED_HOSTS check passes (otherwise /healthz/ returns 400).
+              httpHeaders:
+                - name: Host
+                  value: vault.civpulse.org
+            failureThreshold: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz/
+              port: http
+              # Probes hit the pod by IP; present the expected Host so Django's
+              # ALLOWED_HOSTS check passes (otherwise /healthz/ returns 400).
+              httpHeaders:
+                - name: Host
+                  value: vault.civpulse.org
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /healthz/
+              port: http
+              # Probes hit the pod by IP; present the expected Host so Django's
+              # ALLOWED_HOSTS check passes (otherwise /healthz/ returns 400).
+              httpHeaders:
+                - name: Host
+                  value: vault.civpulse.org
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              memory: "768Mi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: shm
+              mountPath: /dev/shm
+      volumes:
+        # Writable scratch so the root filesystem can stay read-only.
+        - name: tmp
+          emptyDir: {}
+        # gunicorn worker heartbeat file lives here (--worker-tmp-dir /dev/shm).
+        - name: shm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 64Mi

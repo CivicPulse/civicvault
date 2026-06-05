@@ -32,7 +32,9 @@ jobs:
       - name: Set up Python
         run: uv python install 3.12
       - name: Install dependencies
-        run: uv sync --dev
+        # --group ingest pulls faster-whisper so the transcription module imports
+        # under test; the production image omits this group (see Dockerfile).
+        run: uv sync --dev --group ingest
       - name: Lint
         run: |
           uv run ruff check .
