@@ -63,18 +63,27 @@ def multiyear(db):
         name="Board of Education", slug="boe", jurisdiction=jur, reviewed=True
     )
     m2023 = Meeting.objects.create(
-        body=body, jurisdiction=jur, date=datetime.date(2023, 5, 1),
-        kind=Meeting.Kind.BOARD, slug="m2023",
+        body=body,
+        jurisdiction=jur,
+        date=datetime.date(2023, 5, 1),
+        kind=Meeting.Kind.BOARD,
+        slug="m2023",
     )
     m2025 = Meeting.objects.create(
-        body=body, jurisdiction=jur, date=datetime.date(2025, 5, 1),
-        kind=Meeting.Kind.BOARD, slug="m2025",
+        body=body,
+        jurisdiction=jur,
+        date=datetime.date(2025, 5, 1),
+        kind=Meeting.Kind.BOARD,
+        slug="m2025",
     )
     # A second 2025 meeting: years must still de-duplicate to one 2025 entry
     # (guards the DISTINCT-vs-default-ordering trap in _corpus_years).
     Meeting.objects.create(
-        body=body, jurisdiction=jur, date=datetime.date(2025, 9, 1),
-        kind=Meeting.Kind.COMMITTEE, slug="m2025b",
+        body=body,
+        jurisdiction=jur,
+        date=datetime.date(2025, 9, 1),
+        kind=Meeting.Kind.COMMITTEE,
+        slug="m2025b",
     )
     item = AgendaItem.objects.create(meeting=m2025, order=1, title="Budget")
 
@@ -89,12 +98,18 @@ def multiyear(db):
     Vote.objects.create(person=current, agenda_item=item, value=Vote.Value.YEA, reviewed=True)
 
     Document.objects.create(
-        title="Budget Packet", text="annual budget summary", meeting=m2025,
-        access_level=Document.AccessLevel.PUBLIC, source_url="https://example.org/b.pdf",
+        title="Budget Packet",
+        text="annual budget summary",
+        meeting=m2025,
+        access_level=Document.AccessLevel.PUBLIC,
+        source_url="https://example.org/b.pdf",
     )
     Document.objects.create(
-        title="Old Budget", text="annual budget summary", meeting=m2023,
-        access_level=Document.AccessLevel.PUBLIC, source_url="https://example.org/o.pdf",
+        title="Old Budget",
+        text="annual budget summary",
+        meeting=m2023,
+        access_level=Document.AccessLevel.PUBLIC,
+        source_url="https://example.org/o.pdf",
     )
     return {"jur": jur, "body": body, "departed": departed, "current": current}
 
@@ -141,9 +156,13 @@ def test_contract_rows_carry_year_and_raw_amount(client, multiyear):
         name="Acme Copiers", slug="acme", kind=Organization.Kind.COMPANY, reviewed=True
     )
     _make_relationship(
-        multiyear["body"], vendor, Relationship.Predicate.CONTRACTS_WITH,
-        amount=Decimal("125000.00"), occurred_on=datetime.date(2025, 3, 1),
-        note="Copier lease", reviewed=True,
+        multiyear["body"],
+        vendor,
+        Relationship.Predicate.CONTRACTS_WITH,
+        amount=Decimal("125000.00"),
+        occurred_on=datetime.date(2025, 3, 1),
+        note="Copier lease",
+        reviewed=True,
     )
     _resp, data = _graph_payload(client)
     edge = next(e for e in data["edges"] if e["kind"] == "contracts_with")

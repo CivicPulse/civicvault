@@ -56,9 +56,7 @@ def _meeting_folders():
 def _recording_infos():
     """Every recording .info.json whose date-prefixed name is in the wanted years."""
     return sorted(
-        j
-        for j in REC_DIR.glob("*.info.json")
-        if j.name[:4].isdigit() and int(j.name[:4]) in YEARS
+        j for j in REC_DIR.glob("*.info.json") if j.name[:4].isdigit() and int(j.name[:4]) in YEARS
     )
 
 
