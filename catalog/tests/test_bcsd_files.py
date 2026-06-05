@@ -2,8 +2,30 @@ from pathlib import Path
 
 import pytest
 
-from catalog.ingest.bcsd.files import document_kind_for, extract_pdf_text, r2_key_for, title_for
+from catalog.ingest.bcsd.files import (
+    _pg_safe_text,
+    document_kind_for,
+    extract_pdf_text,
+    r2_key_for,
+    title_for,
+)
 from catalog.tests.fixtures.pdfs import write_empty_pdf, write_text_pdf
+
+
+def test_pg_safe_text_strips_nul_and_surrogates():
+    """PDF text layers can carry bytes PostgreSQL rejects; sanitize, keep the rest."""
+    dirty = "Budget\x00 line \udb40item — $5,000"
+    clean = _pg_safe_text(dirty)
+    assert "\x00" not in clean
+    # the cleaned text must round-trip to UTF-8 (PostgreSQL stores UTF-8)
+    clean.encode("utf-8")
+    assert clean.startswith("Budget")
+    assert "$5,000" in clean and "—" in clean
+
+
+def test_pg_safe_text_leaves_clean_text_untouched():
+    s = "Ordinary minutes text with $1,234.56 and café."
+    assert _pg_safe_text(s) == s
 
 
 def test_r2_key_locates_bcsd_component():

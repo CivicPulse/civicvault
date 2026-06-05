@@ -47,6 +47,17 @@ def title_for(filename: str) -> str:
     return stem.replace("-", " ").replace("_", " ").strip().title()
 
 
+def _pg_safe_text(s: str) -> str:
+    """Strip code points PostgreSQL text columns reject: NUL (0x00) and lone or
+    invalid surrogates (e.g. ``\\udb40``). pypdf occasionally emits both from
+    broken PDF text layers; one bad glyph must not sink a whole meeting's ingest.
+    Encoding with errors='ignore' drops the un-encodable surrogates; NUL survives
+    that round-trip, so strip it explicitly."""
+    if not s:
+        return s
+    return s.encode("utf-8", "ignore").decode("utf-8").replace("\x00", "")
+
+
 def extract_pdf_text(local_path: Path) -> tuple[str, str]:
     """Return (text, ocr_status). Status ∈ has_text | ocr_needed | empty | unknown.
 
@@ -62,6 +73,7 @@ def extract_pdf_text(local_path: Path) -> tuple[str, str]:
         if len(pages) == 0:
             return "", "empty"
         text = "".join((page.extract_text() or "") for page in pages).strip()
+        text = _pg_safe_text(text)  # PDF text layers can carry NULs / lone surrogates
         total = len(text)
         if total == 0 or total / len(pages) < MIN_CHARS_PER_PAGE:
             return text, "ocr_needed"
