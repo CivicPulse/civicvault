@@ -154,10 +154,11 @@ done
 DATABASE_URL="$PROD" DEBUG=False uv run python manage.py build_relationships --review
 ```
 
-> R2 media: only `r2_key` rows move (the bytes are already in the bucket). For
-> media links to load in the browser, the **`data.civpulse.org` R2 custom domain
-> must allow public access** (Cloudflare R2 → bucket → Settings) — otherwise it
-> returns 403.
+> R2 media: only `r2_key` rows move (the bytes are already in the bucket). The
+> `data.civpulse.org` custom domain already serves objects publicly (browser GET
+> returns 200/206). Note: Cloudflare WAF/bot-fight returns **403 to non-browser
+> User-Agents** — so a `curl`/`urllib` check can false-alarm; test with a browser
+> UA (real users are unaffected).
 
 ## Notes
 
