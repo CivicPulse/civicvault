@@ -20,6 +20,10 @@ dev = [
     "pytest-django>=4.12.0",
     "ruff>=0.15.15",
 ]
+gpu = [
+    "nvidia-cublas-cu12>=12.9",
+    "nvidia-cudnn-cu12>=9,<10",
+]
 ingest = [
     "faster-whisper>=1.2.1",
 ]

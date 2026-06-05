@@ -7,10 +7,13 @@ transcript segments. This backfills them: it re-runs `ingest_recording --whisper
 for each, which deletes the empty transcript and recreates it from whisper output
 (load_recording wipes transcripts/coverages before rebuild, so no duplicates).
 
-Slow: faster-whisper `base` on CPU, ~10-30 min per multi-hour recording. Run in
-the background. Idempotent and restartable — a re-run just re-transcribes.
+Speed depends on the device. With the `gpu` dependency-group installed (the
+nvidia-*-cu12 CUDA 12 wheels), transcribe_flac runs on the GPU — seconds per
+recording. Without it, faster-whisper `base` runs on CPU (~10-30 min each).
+Idempotent and restartable — a re-run just re-transcribes.
 
-Run:  uv run python scripts/whisper_flac_recordings.py
+Run (GPU):  uv run --group ingest --group gpu python scripts/whisper_flac_recordings.py
+Run (CPU):  uv run --group ingest python scripts/whisper_flac_recordings.py
 """
 
 import os
