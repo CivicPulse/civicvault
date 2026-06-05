@@ -18,6 +18,7 @@ from urllib.parse import urlencode
 
 from django.core.files.storage import default_storage
 from django.db.models import Count, Q
+from django.db.models.functions import ExtractYear
 from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -61,6 +62,38 @@ def _initials(name, limit=4):
 def _plural(n, singular, plural=None):
     """Pick the grammatically correct label for a count ('1 agency', '4 meetings')."""
     return singular if n == 1 else (plural or singular + "s")
+
+
+def _corpus_years():
+    """Distinct years the year filter can offer, newest first.
+
+    Driven by meeting dates — the spine of both search and the graph — so the
+    control only ever lists years the corpus can actually answer for (and grows
+    on its own as new years are ingested; nothing is hardcoded)."""
+    # The explicit order_by(-y) is load-bearing: it replaces Meeting's default
+    # ordering so DISTINCT projects on the year alone. Without it, the ordering
+    # column rides into the SELECT and DISTINCT dedups on (year, date) — handing
+    # back one row per meeting, i.e. duplicate years.
+    years = (
+        Meeting.objects.exclude(date__isnull=True)
+        .annotate(y=ExtractYear("date"))
+        .values_list("y", flat=True)
+        .order_by("-y")
+        .distinct()
+    )
+    return list(years)
+
+
+def _selected_year(request, available):
+    """Parse and validate ?year=; return an int in `available`, else None ('All')."""
+    raw = request.GET.get("year")
+    if not raw:
+        return None
+    try:
+        year = int(raw)
+    except (TypeError, ValueError):
+        return None
+    return year if year in available else None
 
 
 def _timecode(seconds):
@@ -177,13 +210,25 @@ def search(request):
     one click from where it was said.
     """
     q = (request.GET.get("q") or "").strip()
-    context = {"q": q, "suggestions": SUGGESTED_QUERIES, "nav": "search"}
+    years = _corpus_years()
+    year = _selected_year(request, years)
+    context = {
+        "q": q,
+        "suggestions": SUGGESTED_QUERIES,
+        "nav": "search",
+        "years": years,
+        "selected_year": year,
+    }
 
     if not q:
         return render(request, "core/search.html", context)
 
     # ---- Documents -----------------------------------------------------
     doc_qs = Document.objects.filter(Q(title__icontains=q) | Q(text__icontains=q))
+    if year:
+        # A document is dated by its meeting; undated documents fall outside any
+        # single year and so drop out when a year is chosen.
+        doc_qs = doc_qs.filter(meeting__date__year=year)
     doc_total = doc_qs.count()
     doc_hits = []
     for d in doc_qs.select_related("meeting").order_by("-meeting__date", "title")[:DOC_LIMIT]:
@@ -206,6 +251,16 @@ def search(request):
 
     # ---- Transcript segments -------------------------------------------
     seg_qs = TranscriptSegment.objects.filter(text__icontains=q)
+    if year:
+        # A transcript moment is dated by its recording: a meeting the recording
+        # covers, or the recording's own date. Filtering at the recording level
+        # keeps the shown count honest (the per-offset meeting is resolved in
+        # Python below, after the page is capped, so it can't drive the total).
+        seg_qs = seg_qs.filter(
+            Q(transcript__media__coverages__meeting__date__year=year)
+            | Q(transcript__media__recorded_on__year=year)
+            | Q(transcript__media__upload_date__year=year)
+        ).distinct()
     seg_total = seg_qs.count()
     segment_hits = []
     seg_page = (
@@ -420,6 +475,10 @@ def graph(request):
                 "label": r["label"][:90],
                 "sub": f"{r['date']:%b %-d, %Y}" if r["date"] else "",
                 "note": f"${r['amount']:,.0f}" if r["amount"] else "amount not recorded",
+                # year + raw amount let the client re-scope this edge to a single
+                # year: filter the rows, recount, and re-sum the dollar figure.
+                "year": r["date"].year if r["date"] else None,
+                "amt": float(r["amount"]) if r["amount"] else 0,
             }
             for r in rows
         ]
@@ -435,6 +494,7 @@ def graph(request):
                 "weight": n,
                 "summary": summary,
                 "rows": detail,
+                "years": sorted({r["year"] for r in detail if r["year"]}, reverse=True),
             }
         )
 
@@ -519,6 +579,7 @@ def graph(request):
         pb[(person_pk, body_pk)].append(
             {
                 "date": mdate,
+                "year": mdate.year,
                 "label": f"{mdate:%b %-d, %Y}",
                 "sub": mkind,
                 "note": " · ".join(notes) or "participated",
@@ -528,7 +589,7 @@ def graph(request):
     for (person_pk, body_pk), mtgs in pb.items():
         mtgs.sort(key=lambda r: r["date"], reverse=True)
         for r in mtgs:
-            del r["date"]  # only needed for the sort; keep the JSON lean
+            del r["date"]  # only needed for the sort; year carries the time signal
         n = len(mtgs)
         is_member = (person_pk, body_pk) in board_members
         edges.append(
@@ -540,6 +601,7 @@ def graph(request):
                 "weight": n,
                 "summary": f"{n} shared meeting" + ("" if n == 1 else "s"),
                 "rows": mtgs,
+                "years": sorted({r["year"] for r in mtgs}, reverse=True),
             }
         )
 
@@ -561,13 +623,19 @@ def graph(request):
             "from": id_label[e["source"]],
             "rel": e["label"],
             "to": id_label[e["target"]],
+            "source_id": e["source"],
+            "target_id": e["target"],
             "source_type": id_type[e["source"]],
             "target_type": id_type[e["target"]],
             "rows": e.get("rows", []),
+            # Space-joined years let the List view mirror the graph's year filter;
+            # empty for structural ties (they ride their endpoints' visibility).
+            "years": " ".join(str(y) for y in e.get("years", [])),
         }
         for e in edges
     ]
 
+    years = _corpus_years()
     context = {
         "graph_data": {"nodes": nodes, "edges": edges},
         "graph_groups": groups,
@@ -577,6 +645,8 @@ def graph(request):
         "edge_count": len(edges),
         "suggestions": SUGGESTED_QUERIES,
         "nav": "graph",
+        "years": years,
+        "selected_year": _selected_year(request, years),
     }
     return render(request, "core/graph.html", context)
 

@@ -391,6 +391,7 @@
 
   // ---- Selection + hover + the detail rail --------------------------------
   const rail = stage.querySelector("[data-graph-rail]");
+  const railEmptyHTML = rail.innerHTML; // restored when a selection is cleared
   let selected = null; // selected node (single-entity view)
   let selectedEdge = null; // selected edge (person<->body relationship view)
   let hovered = null;
@@ -406,11 +407,75 @@
   // refresh() owns every is-* class so the three inputs never stomp each other.
   let searchQuery = "";
   const hiddenTypes = new Set();
+  let selectedYear = null; // int year, or null for "All"
   const neighborIdSet = (n) => new Set(neighbors.get(n.id).map((x) => x.node.id));
   const nodeMatches = (n, q) => !q || n.label.toLowerCase().includes(q);
 
+  // ---- Year filter ---------------------------------------------------------
+  // Edges split by their relationship to time: PERSON<->BODY and BODY<->VENDOR
+  // ties carry the years they happened ("dated"); BODY<->JURISDICTION ("sits in")
+  // is structural scaffolding with no year of its own.
+  const isStructural = (l) => l.kind === "in";
+
+  // Which nodes survive the selected year. People and vendors stay only if a
+  // dated edge of theirs is active that year; bodies/jurisdictions are scaffolding
+  // that stays if anything *below* them is active (a body keeps its jurisdiction).
+  // Returns null when no year is selected (= everything visible).
+  function liveNodeIds() {
+    if (selectedYear == null) return null;
+    const live = new Set();
+    links.forEach((l) => {
+      if (!isStructural(l) && l.years && l.years.includes(selectedYear)) {
+        live.add(l.source.id);
+        live.add(l.target.id);
+      }
+    });
+    // Flow scaffolding upward only (body -> jurisdiction), to a fixpoint. A live
+    // jurisdiction never resurrects a body that had no activity that year.
+    let changed = true;
+    while (changed) {
+      changed = false;
+      links.forEach((l) => {
+        if (isStructural(l) && live.has(l.source.id) && !live.has(l.target.id)) {
+          live.add(l.target.id);
+          changed = true;
+        }
+      });
+    }
+    return live;
+  }
+
+  const nodeYearVisible = (n, live) => live == null || live.has(n.id);
+  function edgeYearVisible(l, live) {
+    if (live == null) return true;
+    if (isStructural(l)) return live.has(l.source.id) && live.has(l.target.id);
+    return !!(l.years && l.years.includes(selectedYear));
+  }
+
+  // The edge re-scoped to the selected year: rows trimmed to that year, and the
+  // label / summary / dollar total recomputed so the rail never shows "3 meetings"
+  // while displaying only the one that fell in the chosen year.
+  function edgeView(l) {
+    const rows = l.rows || [];
+    if (selectedYear == null || isStructural(l) || !l.years) {
+      return { rows, label: l.label, summary: l.summary, count: rows.length };
+    }
+    const scoped = rows.filter((r) => r.year === selectedYear);
+    const n = scoped.length;
+    if (l.kind === "contracts_with") {
+      const total = scoped.reduce((s, r) => s + (r.amt || 0), 0);
+      const money = total ? "$" + Math.round(total).toLocaleString("en-US") : "";
+      let summary = `${n} contract${n === 1 ? "" : "s"}`;
+      if (money) summary += ` · ${money}`;
+      return { rows: scoped, label: money || summary, summary, count: n };
+    }
+    const label = l.kind === "board_member" ? "board member" : `${n} meeting${n === 1 ? "" : "s"}`;
+    return { rows: scoped, label, summary: `${n} shared meeting${n === 1 ? "" : "s"}`, count: n };
+  }
+
   function refresh() {
     const q = searchQuery.trim().toLowerCase();
+    const live = liveNodeIds();
     let visibleMatches = 0;
 
     // Which nodes/edges stay bright is driven by the current selection context:
@@ -423,26 +488,28 @@
         : null;
 
     nodes.forEach((n) => {
-      const typeVis = !hiddenTypes.has(n.type);
+      const vis = !hiddenTypes.has(n.type) && nodeYearVisible(n, live);
       const match = nodeMatches(n, q);
       const isSel =
         (!!selected && n.id === selected.id) ||
         (!!selectedEdge && (n.id === selectedEdge.source.id || n.id === selectedEdge.target.id));
-      n.el.classList.toggle("is-filtered", !typeVis);
+      n.el.classList.toggle("is-filtered", !vis);
       let dim = false;
-      if (q) dim = typeVis && !match;
+      if (q) dim = vis && !match;
       else if (highlight) dim = !highlight.has(n.id);
       n.el.classList.toggle("is-dim", dim && !isSel);
       n.el.classList.toggle("is-selected", isSel);
-      n.el.classList.toggle("is-match", !!(q && match && typeVis && !isSel));
-      if (typeVis && match) visibleMatches++;
+      n.el.classList.toggle("is-match", !!(q && match && vis && !isSel));
+      if (vis && match) visibleMatches++;
     });
 
     links.forEach((l) => {
-      const typeVis =
-        !hiddenTypes.has(l.source.type) && !hiddenTypes.has(l.target.type);
-      l.el.classList.toggle("is-filtered", !typeVis);
-      if (l.hit) l.hit.classList.toggle("is-filtered", !typeVis);
+      const vis =
+        !hiddenTypes.has(l.source.type) &&
+        !hiddenTypes.has(l.target.type) &&
+        edgeYearVisible(l, live);
+      l.el.classList.toggle("is-filtered", !vis);
+      if (l.hit) l.hit.classList.toggle("is-filtered", !vis);
       let active = false;
       let dim = false;
       if (q) {
@@ -460,7 +527,7 @@
 
     renderActiveEdgeLabels(q);
     updateSearchFeedback(q, visibleMatches);
-    refreshList(q);
+    refreshList(q, live);
   }
 
   // Show the "N meetings" label on whichever edges are active (the selected edge,
@@ -476,11 +543,12 @@
     else if (selected)
       active = links.filter((l) => l.source.id === selected.id || l.target.id === selected.id);
     active.forEach((l) => {
-      if (!l.label) return;
+      const text = edgeView(l).label;
+      if (!text) return;
       const t = document.createElementNS(SVGNS, "text");
       t.setAttribute("class", "g-edgelabel");
       t.setAttribute("text-anchor", "middle");
-      t.textContent = l.label;
+      t.textContent = text;
       gEdgeLabels.appendChild(t);
       l.labelEl = t;
     });
@@ -523,13 +591,24 @@
           : `<li><span>${esc(d.title)}</span></li>`
       )
       .join("");
+    // Under a year filter, hide connections that fall outside it, and relabel the
+    // rest to that year ("2 meetings", not the all-time count).
+    const live = liveNodeIds();
+    const visConns = conns.filter((c) => {
+      if (!nodeYearVisible(c.node, live)) return false;
+      if (selectedYear != null && c.edge && !isStructural(c.edge)) {
+        return edgeView(c.edge).count > 0;
+      }
+      return true;
+    });
     // A connection whose edge carries meetings opens the relationship view; a
     // structural one (body -> jurisdiction) just navigates to the neighbour.
-    const connItems = conns
+    const connItems = visConns
       .map((c) => {
-        const hasDetail = c.edge && c.edge.rows && c.edge.rows.length;
+        const ev = c.edge ? edgeView(c.edge) : null;
+        const hasDetail = ev && ev.rows.length;
         return `<li><button type="button" class="gr-conn" data-conn="${esc(c.node.id)}">
-             <span class="gr-conn__rel mono">${esc(c.label)}</span>
+             <span class="gr-conn__rel mono">${esc(ev ? ev.label : c.label)}</span>
              <span class="gr-conn__name">${esc(c.node.label)}</span>
              ${hasDetail ? '<span class="gr-conn__go" aria-hidden="true">→</span>' : ""}
            </button></li>`;
@@ -545,7 +624,7 @@
       </div>
       ${stats ? `<dl class="gr-stats">${stats}</dl>` : ""}
       ${docs ? `<div class="gr-block"><h3 class="gr-block__title">Source documents</h3><ul class="gr-docs">${docs}</ul></div>` : ""}
-      ${connItems ? `<div class="gr-block"><h3 class="gr-block__title">${connTitle} <span class="mono">${conns.length}</span></h3><ul class="gr-conns">${connItems}</ul></div>` : ""}
+      ${connItems ? `<div class="gr-block"><h3 class="gr-block__title">${connTitle} <span class="mono">${visConns.length}</span></h3><ul class="gr-conns">${connItems}</ul></div>` : ""}
       ${n.href ? `<a class="gr-cta" href="${esc(n.href)}">Follow to the record <span aria-hidden="true">↗</span></a>` : ""}
     `;
   }
@@ -555,7 +634,9 @@
   function relationshipHTML(edge) {
     const a = edge.source;
     const b = edge.target;
-    const data = edge.rows || [];
+    const view = edgeView(edge);
+    const data = view.rows;
+    const scope = selectedYear != null && !isStructural(edge) ? ` in ${selectedYear}` : "";
     const rows = data
       .map(
         (m) =>
@@ -568,10 +649,10 @@
       .join("");
     const body = data.length
       ? `<div class="gr-block">
-           <h3 class="gr-block__title">${esc(edge.summary || `${data.length} items`)}</h3>
+           <h3 class="gr-block__title">${esc((view.summary || `${data.length} items`) + scope)}</h3>
            <ul class="gr-mts">${rows}</ul>
          </div>`
-      : `<p class="gr-sub">${esc(edge.label || "Connected")}.</p>`;
+      : `<p class="gr-sub">${esc(view.label || "Connected")}.</p>`;
     return `
       <div class="gr-head gr-head--rel">
         <span class="gr-type">Relationship</span>
@@ -640,6 +721,13 @@
     wireRailButtons();
   }
 
+  function clearSelection() {
+    selected = null;
+    selectedEdge = null;
+    rail.innerHTML = railEmptyHTML;
+    rail.classList.remove("is-filled");
+  }
+
   function centerOn(n) {
     view.x = n.x - view.w / 2;
     view.y = n.y - view.h / 2;
@@ -689,18 +777,29 @@
   }
 
   // Mirror the graph's filter + search onto the no-JS list so both views agree.
-  function refreshList(q) {
+  function refreshList(q, live) {
     if (!fallback) return;
     fallback.querySelectorAll("[data-node-id]").forEach((el) => {
       const vis =
         !hiddenTypes.has(el.dataset.type) &&
+        (live == null || live.has(el.dataset.nodeId)) &&
         (!q || (el.dataset.search || "").includes(q));
       el.classList.toggle("is-hidden", !vis);
     });
     fallback.querySelectorAll("[data-edge]").forEach((el) => {
+      const yrs = (el.dataset.years || "").split(" ").filter(Boolean);
+      let yearVis = true;
+      if (live != null) {
+        // dated edges match on their own years; structural ties ride their
+        // endpoints' visibility, exactly as the graph does.
+        yearVis = yrs.length
+          ? yrs.includes(String(selectedYear))
+          : live.has(el.dataset.sourceId) && live.has(el.dataset.targetId);
+      }
       const vis =
         !hiddenTypes.has(el.dataset.sourceType) &&
         !hiddenTypes.has(el.dataset.targetType) &&
+        yearVis &&
         (!q || (el.textContent || "").toLowerCase().includes(q));
       el.classList.toggle("is-hidden", !vis);
     });
@@ -762,6 +861,39 @@
       refresh();
     });
   });
+
+  // ---- Year filter: segmented control + shareable ?year= ------------------
+  const yearWrap = document.querySelector("[data-graph-years]");
+  if (yearWrap) {
+    const yearBtns = yearWrap.querySelectorAll(".gyear");
+    // Honour a deep-linked ?year= (the server already marked the active button).
+    const initial = yearWrap.querySelector(".gyear.is-active");
+    if (initial && initial.dataset.year) selectedYear = parseInt(initial.dataset.year, 10);
+
+    const syncYearURL = () => {
+      const url = new URL(window.location.href);
+      if (selectedYear == null) url.searchParams.delete("year");
+      else url.searchParams.set("year", String(selectedYear));
+      history.replaceState(null, "", url);
+    };
+
+    yearBtns.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const val = btn.dataset.year ? parseInt(btn.dataset.year, 10) : null;
+        if (val === selectedYear) return;
+        selectedYear = val;
+        yearBtns.forEach((b) => {
+          const active = b === btn;
+          b.classList.toggle("is-active", active);
+          b.setAttribute("aria-pressed", String(active));
+        });
+        // The reframed graph may have dropped whatever was selected; reset the rail.
+        clearSelection();
+        syncYearURL();
+        refresh();
+      });
+    });
+  }
 
   function setView(mode) {
     const graphMode = mode === "graph";

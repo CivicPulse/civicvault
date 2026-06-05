@@ -26,12 +26,26 @@
     {% if q %}
     <p class="results__summary" role="status">
       {% if total %}
-        <b>{{ total|intcomma }}</b> result{{ total|pluralize }} for <span class="results__q">&ldquo;{{ q }}&rdquo;</span>
+        <b>{{ total|intcomma }}</b> result{{ total|pluralize }} for <span class="results__q">&ldquo;{{ q }}&rdquo;</span>{% if selected_year %} in <span class="mono">{{ selected_year }}</span>{% endif %}
         — {{ doc_total|intcomma }} document{{ doc_total|pluralize }}, {{ segment_total|intcomma }} transcript moment{{ segment_total|pluralize }}.
       {% else %}
-        No matches for <span class="results__q">&ldquo;{{ q }}&rdquo;</span>.
+        No matches for <span class="results__q">&ldquo;{{ q }}&rdquo;</span>{% if selected_year %} in <span class="mono">{{ selected_year }}</span>{% endif %}.
       {% endif %}
     </p>
+
+    {% if years %}
+    <nav class="yearbar" aria-label="Filter results by year">
+      <span class="yearbar__label mono" aria-hidden="true">YEAR</span>
+      <a class="yearchip{% if not selected_year %} is-active{% endif %}"
+         href="{% url 'core:search' %}?q={{ q|urlencode }}"
+         {% if not selected_year %}aria-current="true"{% endif %}>All</a>
+      {% for y in years %}
+      <a class="yearchip{% if selected_year == y %} is-active{% endif %}"
+         href="{% url 'core:search' %}?q={{ q|urlencode }}&amp;year={{ y }}"
+         {% if selected_year == y %}aria-current="true"{% endif %}>{{ y }}</a>
+      {% endfor %}
+    </nav>
+    {% endif %}
     {% endif %}
   </div>
 </section>
@@ -61,11 +75,19 @@
   {% elif not total %}
   <div class="state">
     {% include "core/_icon_search.html" %}
+    {% if selected_year %}
+    <h1 class="state__title">Nothing matched in {{ selected_year }}</h1>
+    <p class="state__body">
+      No documents or transcripts from {{ selected_year }} contain &ldquo;{{ q }}&rdquo;.
+      <a href="{% url 'core:search' %}?q={{ q|urlencode }}">Search every year</a>, or try one of these:
+    </p>
+    {% else %}
     <h1 class="state__title">Nothing matched that query</h1>
     <p class="state__body">
       No documents or transcripts contain &ldquo;{{ q }}&rdquo;. Try a shorter phrase, a single
       name, or one of these:
     </p>
+    {% endif %}
     {% if suggestions %}
     <div class="suggests" style="justify-content:center; margin-top: var(--s-5);">
       <span class="suggests__label">Try:</span>

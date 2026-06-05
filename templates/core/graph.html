@@ -51,6 +51,20 @@
         {% endfor %}
       </div>
 
+      {% if years %}
+      <div class="graph-years" role="group" aria-label="Filter by year" data-graph-years>
+        <span class="graph-years__label mono" aria-hidden="true">YEAR</span>
+        <div class="gyears">
+          <button type="button" class="gyear{% if not selected_year %} is-active{% endif %}"
+                  data-year="" aria-pressed="{% if not selected_year %}true{% else %}false{% endif %}">All</button>
+          {% for y in years %}
+          <button type="button" class="gyear{% if selected_year == y %} is-active{% endif %}"
+                  data-year="{{ y }}" aria-pressed="{% if selected_year == y %}true{% else %}false{% endif %}">{{ y }}</button>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
       <div class="graph-views" role="group" aria-label="View mode">
         <button type="button" class="gview is-active" data-view="graph" aria-pressed="true">Graph</button>
         <button type="button" class="gview" data-view="list" aria-pressed="false">List</button>
@@ -146,7 +160,9 @@
     </div>
     <ul class="gl-edges">
       {% for e in fallback_edges %}
-      <li data-edge data-source-type="{{ e.source_type }}" data-target-type="{{ e.target_type }}">
+      <li data-edge data-source-type="{{ e.source_type }}" data-target-type="{{ e.target_type }}"
+          data-source-id="{{ e.source_id }}" data-target-id="{{ e.target_id }}"
+          data-years="{{ e.years }}">
         <div class="gl-edge__head">
           <span class="gl-edge__from">{{ e.from }}</span>
           <span class="gl-edge__rel mono">{{ e.rel }}</span>

@@ -107,6 +107,25 @@
 .gview:hover { color: var(--ink); }
 .gview.is-active { background: var(--bg-3); color: var(--accent-ink); }
 
+/* ---- year filter: a single-select segmented control (one year at a time) ---- */
+.graph-years { display: inline-flex; align-items: center; gap: var(--s-2); }
+.graph-years__label {
+  font-size: var(--t-2xs); letter-spacing: 0.14em; color: var(--ink-3); user-select: none;
+}
+.gyears {
+  display: inline-flex; border: 1px solid var(--line);
+  border-radius: var(--r-md); overflow: hidden;
+}
+.gyear {
+  background: var(--bg-1); border: 0; color: var(--ink-3);
+  padding: var(--s-2) var(--s-3); font-size: var(--t-sm); line-height: 1;
+  font-variant-numeric: tabular-nums; cursor: pointer;
+  transition: color var(--dur-fast), background var(--dur-fast);
+}
+.gyear + .gyear { border-left: 1px solid var(--line); }
+.gyear:hover { color: var(--ink); }
+.gyear.is-active { background: var(--bg-3); color: var(--accent-ink); }
+
 /* ============================================================== STAGE */
 .graph-shell { padding-block: var(--s-5) var(--s-7); }
 .graph-stage {

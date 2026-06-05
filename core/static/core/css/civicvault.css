@@ -355,6 +355,29 @@ a:hover { text-decoration: underline; text-underline-offset: 0.18em; }
 .results__summary b { color: var(--ink); }
 .results__q { color: var(--accent-ink); }
 
+/* year filter: single-select pills that reload results scoped to one year */
+.yearbar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2);
+  margin-top: var(--s-4);
+}
+.yearbar__label {
+  font-size: var(--t-2xs); letter-spacing: 0.14em; color: var(--ink-3); user-select: none;
+}
+.yearchip {
+  font-family: var(--font-mono); font-size: var(--t-sm); line-height: 1;
+  color: var(--ink-2); padding: var(--s-1) var(--s-3);
+  border: 1px solid var(--line); border-radius: var(--r-pill);
+  font-variant-numeric: tabular-nums;
+  transition: color var(--dur-fast), border-color var(--dur-fast), background var(--dur-fast);
+}
+.yearchip:hover {
+  color: var(--accent-ink); border-color: var(--accent-dim);
+  background: var(--bg-2); text-decoration: none;
+}
+.yearchip.is-active {
+  color: var(--accent-ink); border-color: var(--accent-dim); background: var(--bg-3);
+}
+
 .group { margin-top: var(--s-7); }
 .group__head {
   display: flex; align-items: baseline; gap: var(--s-3);
