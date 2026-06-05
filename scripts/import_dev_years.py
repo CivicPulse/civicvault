@@ -32,7 +32,12 @@ from django.core.management import call_command  # noqa: E402
 
 MEET_ROOT = ROOT / "archive_data" / "bcsd" / "BCSD_BOE_MEETINGS"
 REC_DIR = ROOT / "archive_data" / "bcsd" / "BCSD_MEETING_RECORDINGS"
-YEARS = (2022, 2023, 2024, 2025, 2026)
+DEFAULT_YEARS = (2020, 2021, 2022, 2023, 2024, 2025, 2026)
+# Years to ingest: from the CLI (e.g. `… import_dev_years.py 2020 2021`) or the
+# full set. Pass explicit years when EXTENDING an existing dev DB — re-ingesting a
+# year re-runs ingest_recording WITHOUT --whisper, which wipes any whisper
+# transcripts already built for that year's recordings.
+YEARS = tuple(int(a) for a in sys.argv[1:] if a.isdigit()) or DEFAULT_YEARS
 _SINK = io.StringIO()  # swallow each command's per-item success line; we print progress
 
 
@@ -49,11 +54,11 @@ def _meeting_folders():
 
 
 def _recording_infos():
-    """Every recording .info.json whose date-prefixed name is 2022 or later."""
+    """Every recording .info.json whose date-prefixed name is in the wanted years."""
     return sorted(
         j
         for j in REC_DIR.glob("*.info.json")
-        if j.name[:4].isdigit() and int(j.name[:4]) >= YEARS[0]
+        if j.name[:4].isdigit() and int(j.name[:4]) in YEARS
     )
 
 

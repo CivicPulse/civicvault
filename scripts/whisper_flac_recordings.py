@@ -32,7 +32,10 @@ django.setup()
 from django.core.management import call_command  # noqa: E402
 
 REC_DIR = ROOT / "archive_data" / "bcsd" / "BCSD_MEETING_RECORDINGS"
-FIRST_YEAR = 2022
+# Years to transcribe: from the CLI (e.g. `… whisper_flac_recordings.py 2021`) or
+# everything 2020+. Pass explicit years to avoid re-transcribing recordings that
+# already have whisper transcripts (harmless, just wasted GPU time).
+_ARGV_YEARS = tuple(int(a) for a in sys.argv[1:] if a.isdigit())
 
 # Recordings to skip, keyed by YouTube id (a substring of the .info.json name).
 # b_mXGkrYIznfU is a ~12h livestream outlier — far longer than any real meeting;
@@ -46,10 +49,13 @@ def _is_skipped(info: Path) -> bool:
 
 
 def _flac_only_infos():
-    """Recordings 2022+ that have a .flac sibling but no .vtt (whisper needed)."""
+    """Recordings (in the wanted years) that have a .flac but no .vtt (whisper needed)."""
     out = []
     for info in sorted(REC_DIR.glob("*.info.json")):
-        if not (info.name[:4].isdigit() and int(info.name[:4]) >= FIRST_YEAR):
+        if not info.name[:4].isdigit():
+            continue
+        year = int(info.name[:4])
+        if (_ARGV_YEARS and year not in _ARGV_YEARS) or year < 2020:
             continue
         base = info.name[: -len(".info.json")]
         has_vtt = any(REC_DIR.glob(f"{base}*.vtt"))
