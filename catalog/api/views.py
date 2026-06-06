@@ -10,6 +10,7 @@ from catalog.api.serializers import MeetingSerializer, UploadRequestSerializer
 from catalog.api.services import bcsd_context, meeting_has_reviewed_facts
 from catalog.api.uploads import presign_uploads, remote_storage_available
 from catalog.ingest.loader import load_meeting
+from catalog.models import Vote
 
 
 class UploadsView(APIView):
@@ -38,6 +39,8 @@ class MeetingsView(APIView):
         parsed = serializer.to_ir()
 
         jurisdiction, source, body = bcsd_context()
+        # The guard and load_meeting are separate DB operations (not one
+        # transaction); acceptable for this single-operator ingest tool.
         if not force and meeting_has_reviewed_facts(source, parsed.source_meeting_id):
             return Response(
                 {
@@ -61,8 +64,10 @@ def _summary(parsed, meeting) -> dict:
         "slug": meeting.slug,
         "source_meeting_id": meeting.source_meeting_id,
         "agenda_items": meeting.agenda_items.count(),
-        "votes": sum(i.votes.count() for i in meeting.agenda_items.all()),
+        # Single aggregate count (avoids per-item N+1).
+        "votes": Vote.objects.filter(agenda_item__meeting=meeting).count(),
         "appearances": meeting.appearances.count(),
         "attachments": attachments,
+        # The loader always writes reviewed=False proposals.
         "reviewed": False,
     }

@@ -98,3 +98,18 @@ def test_bad_vote_value_returns_422(settings):
     payload["agenda_items"][0]["votes"][0]["value"] = "maybe"
     resp = _client(settings).post("/api/v1/meetings", payload, format="json")
     assert resp.status_code == 422
+
+
+@pytest.mark.django_db
+def test_meetings_requires_auth(settings):
+    settings.INGEST_API_TOKEN = TOKEN
+    resp = APIClient().post("/api/v1/meetings", _wire(_meeting()), format="json")
+    assert resp.status_code == 401
+
+
+@pytest.mark.django_db
+def test_malformed_payload_returns_400(settings):
+    payload = _wire(_meeting())
+    del payload["source_meeting_id"]
+    resp = _client(settings).post("/api/v1/meetings", payload, format="json")
+    assert resp.status_code == 400
