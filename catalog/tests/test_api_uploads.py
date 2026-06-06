@@ -30,7 +30,11 @@ def test_uploads_503_without_remote_storage(settings):
 
 @pytest.mark.django_db
 def test_uploads_presigns_missing_and_skips_present(settings, monkeypatch):
-    monkeypatch.setattr(uploads_mod, "remote_storage_available", lambda: True)
+    # Drive the real remote_storage_available() via the setting it reads — the
+    # view imports the name at module load, so monkeypatching uploads_mod won't
+    # rebind the view's reference. A truthy R2_BUCKET makes it return True in any
+    # environment (CI has no R2_BUCKET; this dev box does — don't rely on either).
+    settings.R2_BUCKET = "civicvault-media"
 
     class _Storage:
         def exists(self, key):
