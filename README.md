@@ -121,6 +121,29 @@ To backfill every audio-only recording (2022 onward) in one pass:
 uv run --group ingest --group gpu python scripts/whisper_flac_recordings.py
 ```
 
+### Remote ingest (no DB connection)
+
+A local tool can push parsed meetings to production over HTTP — no database
+connection required. The server reuses the same loader as `ingest_bcsd`, writing
+everything as `reviewed=False` proposals.
+
+1. Set a token on the server (k8s secret) and locally:
+   `INGEST_API_TOKEN=$(uv run python -c "import secrets; print(secrets.token_urlsafe(48))")`
+2. Push a meeting folder:
+   ```bash
+   uv run python manage.py push_bcsd /path/to/meeting-folder \
+     --api-base https://vault.civpulse.org --token "$INGEST_API_TOKEN"
+   ```
+
+The client parses the folder locally, requests presigned R2 upload URLs for
+attachments, uploads the files directly to R2, then POSTs the meeting. Re-posting
+a meeting that already has admin-reviewed facts is rejected unless you pass
+`--force`.
+
+**Endpoints** (both require `Authorization: Bearer <INGEST_API_TOKEN>`):
+- `POST /api/v1/uploads` — `{"keys": [...]}` → presigned PUT URLs for missing keys.
+- `POST /api/v1/meetings` — serialized meeting IR (+ optional `"force": true`).
+
 ---
 
 ## Documentation
