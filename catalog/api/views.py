@@ -6,8 +6,10 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from catalog.api.auth import BearerTokenAuthentication, HasValidIngestToken
-from catalog.api.serializers import UploadRequestSerializer
+from catalog.api.serializers import MeetingSerializer, UploadRequestSerializer
+from catalog.api.services import bcsd_context, meeting_has_reviewed_facts
 from catalog.api.uploads import presign_uploads, remote_storage_available
+from catalog.ingest.loader import load_meeting
 
 
 class UploadsView(APIView):
@@ -23,3 +25,44 @@ class UploadsView(APIView):
         serializer = UploadRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         return Response(presign_uploads(serializer.validated_data["keys"]))
+
+
+class MeetingsView(APIView):
+    authentication_classes = [BearerTokenAuthentication]
+    permission_classes = [HasValidIngestToken]
+
+    def post(self, request):
+        force = bool(request.data.get("force", False))
+        serializer = MeetingSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        parsed = serializer.to_ir()
+
+        jurisdiction, source, body = bcsd_context()
+        if not force and meeting_has_reviewed_facts(source, parsed.source_meeting_id):
+            return Response(
+                {
+                    "detail": (
+                        f"Meeting {parsed.source_meeting_id} has reviewed facts; "
+                        f"pass force=true to overwrite."
+                    )
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+        try:
+            meeting = load_meeting(parsed, source=source, jurisdiction=jurisdiction, body=body)
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+        return Response(_summary(parsed, meeting), status=status.HTTP_201_CREATED)
+
+
+def _summary(parsed, meeting) -> dict:
+    attachments = sum(1 for d in parsed.raw_documents if d.is_attachment)
+    return {
+        "slug": meeting.slug,
+        "source_meeting_id": meeting.source_meeting_id,
+        "agenda_items": meeting.agenda_items.count(),
+        "votes": sum(i.votes.count() for i in meeting.agenda_items.all()),
+        "appearances": meeting.appearances.count(),
+        "attachments": attachments,
+        "reviewed": False,
+    }
