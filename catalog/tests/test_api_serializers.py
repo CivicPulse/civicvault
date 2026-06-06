@@ -1,3 +1,4 @@
+import dataclasses
 import datetime
 import json
 from decimal import Decimal
@@ -89,3 +90,20 @@ def test_payload_is_plain_data():
     payload = payload_from_meeting(_meeting())
     assert isinstance(payload, dict)
     assert payload["agenda_items"][0]["votes"][0]["value"] == "yea"
+
+
+def test_blank_agenda_item_code_round_trips():
+    doc = ParsedDocument(
+        kind="other",
+        title="Notice",
+        source_path="/n",
+        text="",
+        agenda_item_code="",
+        is_attachment=True,
+    )
+    m = _meeting()
+    m = dataclasses.replace(m, raw_documents=(doc,))
+    wire = json.loads(json.dumps(payload_from_meeting(m), default=str))
+    s = MeetingSerializer(data=wire)
+    assert s.is_valid(), s.errors
+    assert s.to_ir().raw_documents[0].agenda_item_code == ""

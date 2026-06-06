@@ -61,7 +61,9 @@ class DocumentSerializer(serializers.Serializer):
     text = serializers.CharField(allow_blank=True)
     r2_key = serializers.CharField(required=False, allow_blank=True, default="")
     ocr_status = serializers.CharField(required=False, default="unknown")
-    agenda_item_code = serializers.CharField(required=False, allow_null=True, default=None)
+    agenda_item_code = serializers.CharField(
+        required=False, allow_blank=True, allow_null=True, default=None
+    )
     is_attachment = serializers.BooleanField(required=False, default=False)
 
 
