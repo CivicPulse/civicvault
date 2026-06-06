@@ -166,3 +166,7 @@ def payload_from_meeting(parsed: ir.ParsedMeeting) -> dict:
     `json.dumps(..., default=str)` so Decimal/date/time serialize as strings the
     serializers parse back exactly."""
     return dataclasses.asdict(parsed)
+
+
+class UploadRequestSerializer(serializers.Serializer):
+    keys = serializers.ListField(child=serializers.CharField(), allow_empty=False)
