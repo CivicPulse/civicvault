@@ -18,7 +18,7 @@ class BearerTokenAuthentication(authentication.BaseAuthentication):
         if not header:
             return None  # no credentials → let the permission return 401
         parts = header.split()
-        if parts[0] != self.keyword:
+        if parts[0].lower() != self.keyword.lower():
             return None  # a different scheme; not ours to judge
         if len(parts) != 2:
             raise exceptions.AuthenticationFailed("Invalid bearer header.")

@@ -51,3 +51,17 @@ def test_permission_checks_request_auth():
     assert perm.has_permission(_Req(), view=None) is False
     _Req.auth = TOKEN
     assert perm.has_permission(_Req(), view=None) is True
+
+
+def test_malformed_header_raises(settings):
+    settings.INGEST_API_TOKEN = TOKEN
+    with pytest.raises(exceptions.AuthenticationFailed):
+        BearerTokenAuthentication().authenticate(_request("Bearer"))
+    with pytest.raises(exceptions.AuthenticationFailed):
+        BearerTokenAuthentication().authenticate(_request("Bearer a b"))
+
+
+def test_lowercase_scheme_authenticates(settings):
+    settings.INGEST_API_TOKEN = TOKEN
+    user, auth = BearerTokenAuthentication().authenticate(_request(f"bearer {TOKEN}"))
+    assert auth == TOKEN
