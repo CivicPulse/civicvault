@@ -4,22 +4,10 @@ from pathlib import Path
 
 from django.core.management.base import BaseCommand, CommandError
 
+from catalog.api.services import bcsd_context
 from catalog.ingest.bcsd.adapter import parse_meeting_folder
 from catalog.ingest.loader import load_meeting
 from catalog.ingest.storage import upload_missing
-from catalog.models import Jurisdiction, Organization, Source
-
-JURISDICTION = {
-    "slug": "bibb-county-boe",
-    "name": "Bibb County Board of Education",
-    "kind": Jurisdiction.Kind.SCHOOL_DISTRICT,
-}
-SOURCE = {"slug": "bcsd-boe-meetings", "name": "BCSD BOE Meetings", "adapter": "bcsd"}
-BODY = {
-    "slug": "boe",
-    "name": "Bibb County Board of Education",
-    "kind": Organization.Kind.COMMITTEE,
-}
 
 
 class Command(BaseCommand):
@@ -38,23 +26,7 @@ class Command(BaseCommand):
         if not folder.is_dir():
             raise CommandError(f"Not a directory: {folder}")
 
-        jurisdiction, _ = Jurisdiction.objects.get_or_create(
-            slug=JURISDICTION["slug"],
-            defaults={"name": JURISDICTION["name"], "kind": JURISDICTION["kind"]},
-        )
-        source, _ = Source.objects.get_or_create(
-            slug=SOURCE["slug"],
-            defaults={
-                "name": SOURCE["name"],
-                "adapter": SOURCE["adapter"],
-                "jurisdiction": jurisdiction,
-            },
-        )
-        body, _ = Organization.objects.get_or_create(
-            slug=BODY["slug"],
-            jurisdiction=jurisdiction,
-            defaults={"name": BODY["name"], "kind": BODY["kind"], "reviewed": True},
-        )
+        jurisdiction, source, body = bcsd_context()
 
         parsed = parse_meeting_folder(folder)
         meeting = load_meeting(parsed, source=source, jurisdiction=jurisdiction, body=body)
