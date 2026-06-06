@@ -155,15 +155,26 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 
 # Object storage (Cloudflare R2 via the S3 API; R2 has zero egress fees).
 # Unset R2_BUCKET → local filesystem storage so dev works without credentials.
+R2_BUCKET = env("R2_BUCKET", default="")
+R2_ENDPOINT_URL = env("R2_ENDPOINT_URL", default="")
+R2_ACCESS_KEY_ID = env("R2_ACCESS_KEY_ID", default="")
+R2_SECRET_ACCESS_KEY = env("R2_SECRET_ACCESS_KEY", default="")
+# Public hostname fronting the bucket (Cloudflare). Makes storage.url()
+# return the cached, publicly fetchable address for media.
+R2_CUSTOM_DOMAIN = env("R2_CUSTOM_DOMAIN", default="")
+
 STORAGES = build_storages(
-    bucket=env("R2_BUCKET", default=""),
-    endpoint_url=env("R2_ENDPOINT_URL", default=""),
-    access_key=env("R2_ACCESS_KEY_ID", default=""),
-    secret_key=env("R2_SECRET_ACCESS_KEY", default=""),
-    # Public hostname fronting the bucket (Cloudflare). Makes storage.url()
-    # return the cached, publicly fetchable address for media.
-    custom_domain=env("R2_CUSTOM_DOMAIN", default=""),
+    bucket=R2_BUCKET,
+    endpoint_url=R2_ENDPOINT_URL,
+    access_key=R2_ACCESS_KEY_ID,
+    secret_key=R2_SECRET_ACCESS_KEY,
+    custom_domain=R2_CUSTOM_DOMAIN,
 )
+
+# Remote ingest API (catalog/api). The token authenticates the local push tool;
+# unset → the API denies every request. Presigned upload URLs expire after TTL.
+INGEST_API_TOKEN = env("INGEST_API_TOKEN", default="")
+INGEST_UPLOAD_URL_TTL = env.int("INGEST_UPLOAD_URL_TTL", default=3600)
 
 # In production (DEBUG off) WhiteNoise serves static assets with content-hashed
 # filenames + compression for far-future caching. This backend needs a manifest
