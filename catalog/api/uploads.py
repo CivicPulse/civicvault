@@ -10,7 +10,13 @@ from django.core.files.storage import default_storage
 
 
 def remote_storage_available() -> bool:
-    """False when no R2 bucket is configured (local filesystem fallback)."""
+    """False when no R2 bucket is configured (local filesystem fallback).
+
+    Uses settings.R2_BUCKET rather than isinstance(default_storage,
+    FileSystemStorage) because default_storage is built once at app load and
+    cannot be toggled by a settings fixture in tests. Both checks are
+    equivalent in production (R2_BUCKET set <=> default_storage is S3Storage).
+    """
     return bool(settings.R2_BUCKET)
 
 
