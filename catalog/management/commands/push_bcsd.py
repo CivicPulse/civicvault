@@ -5,6 +5,7 @@ DB access, only the API token and base URL."""
 
 import json
 import os
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -22,15 +23,21 @@ def _post(url, token, payload):
         method="POST",
         headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
     )
-    with urllib.request.urlopen(req) as resp:  # noqa: S310 (trusted operator URL)
-        return resp.status, json.loads(resp.read())
+    try:
+        with urllib.request.urlopen(req) as resp:  # noqa: S310 (trusted operator URL)
+            return resp.status, json.loads(resp.read())
+    except urllib.error.HTTPError as exc:
+        return exc.code, json.loads(exc.read())
 
 
 def _put_file(url, path):
     with open(path, "rb") as fh:
         req = urllib.request.Request(url, data=fh.read(), method="PUT")
-    with urllib.request.urlopen(req) as resp:  # noqa: S310
-        return resp.status
+    try:
+        with urllib.request.urlopen(req) as resp:  # noqa: S310
+            return resp.status
+    except urllib.error.HTTPError as exc:
+        return exc.code
 
 
 class Command(BaseCommand):
@@ -67,7 +74,9 @@ class Command(BaseCommand):
                 if status != 200:
                     raise CommandError(f"Upload presign failed ({status}): {body}")
                 for item in body["uploads"]:
-                    _put_file(item["url"], attachments[item["key"]])
+                    put_status = _put_file(item["url"], attachments[item["key"]])
+                    if put_status not in (200, 201):
+                        raise CommandError(f"Upload PUT failed ({put_status}) for {item['key']}")
                 self.stdout.write(
                     f"Uploaded {len(body['uploads'])}, skipped {len(body['skipped'])}."
                 )
